@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -25,7 +26,8 @@ func NewHttpServer(port string, fork bool) IHttpServer {
 
 func (h *HttpServerImpl) Setup() *fiber.App {
 	var appConfig fiber.Config = fiber.Config{
-		Prefork: h.Fork,
+		Prefork:      h.Fork,
+		ErrorHandler: ErrorHandler,
 	}
 
 	app := fiber.New(appConfig)
@@ -85,4 +87,22 @@ func (h *HttpServerImpl) Start(app *fiber.App) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func ErrorHandler(c *fiber.Ctx, err error) error {
+	// Default Status
+	code := fiber.StatusInternalServerError
+
+	// Cek Apakah Instance Dari Fiber Error
+	var e *fiber.Error
+	if errors.As(err, &e) {
+		code = e.Code
+	}
+
+	// Respon Standar Yang akan di kembalikan dalam bentuk JSON
+	c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
+	return c.Status(code).JSON(fiber.Map{
+		"success": false,
+		"message": err.Error(),
+	})
 }
