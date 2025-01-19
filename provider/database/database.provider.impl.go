@@ -4,6 +4,7 @@ import "gorm.io/gorm"
 
 type IPSQLConnetion interface {
 	StartPSQLConnection() *gorm.DB
+	StartMigration(db *gorm.DB)
 }
 
 type PSQLConfiguration struct {

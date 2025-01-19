@@ -5,6 +5,7 @@ import (
 	db "finance/provider/database"
 	"finance/provider/http"
 	"finance/route"
+	"flag"
 )
 
 func main() {
@@ -12,6 +13,10 @@ func main() {
 	env := configuration.NewConfiguration(".env").LoadEnv()
 	port := env.GetString("SERVER_PORT")
 	fork := env.GetBool("SERVER_FORK")
+
+	isManageState := flag.Bool("manage", false, "Operate in management mode. When set to true, the system will perform management related tasks. The default value is false.")
+	isMigrate := flag.Bool("migrate", false, "System will perform auto migration")
+	flag.Parse()
 
 	// Start DB Connection
 	dbConf := db.PSQLConfiguration{
@@ -24,7 +29,12 @@ func main() {
 	}
 
 	psql := db.NewPSQLConnetion(dbConf)
-	psql.StartPSQLConnection()
+	db := psql.StartPSQLConnection()
+
+	if *isManageState && *isMigrate {
+		psql.StartMigration(db)
+		return
+	}
 
 	// Create Server Instance
 	server := http.NewHttpServer(port, fork)

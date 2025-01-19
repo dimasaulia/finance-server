@@ -1,6 +1,7 @@
 package database
 
 import (
+	"finance/model"
 	"fmt"
 
 	"github.com/gofiber/fiber/v2/log"
@@ -42,4 +43,12 @@ func (p *PSQL) StartPSQLConnection() *gorm.DB {
 	}
 
 	return psql
+}
+
+func (p *PSQL) StartMigration(db *gorm.DB) {
+	log.Info("==================== Start Migration All Table ====================")
+
+	db.AutoMigrate(
+		&model.Role{},
+	)
 }
