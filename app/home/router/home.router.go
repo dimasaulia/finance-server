@@ -2,7 +2,6 @@ package home
 
 import (
 	c "finance/app/home/controller"
-	"fmt"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -24,6 +23,5 @@ func NewHomeRouter(app *fiber.App, c c.IHomeController) IHomeRouter {
 }
 
 func (h *HomeRouter) SetupHomeRouter() {
-	fmt.Println("Setup Home Router")
 	h.App.Get("/", h.Controller.Home)
 }
