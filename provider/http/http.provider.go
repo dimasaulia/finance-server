@@ -39,6 +39,42 @@ func (h *HttpServerImpl) Setup() *fiber.App {
 		Output:     io.Writer(os.Stdout),
 	}))
 
+	app.Use(func(ctx *fiber.Ctx) error {
+		// Middleware to handle panic
+		defer func() {
+			// Auto recovery process
+			if r := recover(); r != nil {
+				// Check if new error match custom default
+				if errDefault, okDefault := r.(error); okDefault {
+					var errString string = "Internal Server Error"
+					if errDefault.Error() != "" {
+						errString = errDefault.Error()
+					}
+
+					ctx.Status(fiber.StatusInternalServerError).JSON(
+						fiber.Map{
+							"message": errString,
+							"success": false,
+						},
+					)
+					return
+				}
+
+				// Default handler
+				ctx.Status(fiber.StatusInternalServerError).JSON(
+					fiber.Map{
+						"message": r,
+						"success": false,
+					},
+				)
+				return
+			}
+		}()
+
+		// If no error appear continue process
+		return ctx.Next()
+	})
+
 	return app
 }
 
