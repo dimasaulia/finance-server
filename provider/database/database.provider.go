@@ -50,5 +50,9 @@ func (p *PSQL) StartMigration(db *gorm.DB) {
 
 	db.AutoMigrate(
 		&model.Role{},
+		&model.User{},
 	)
+
+	db.Migrator().CreateConstraint(&model.Role{}, "user")
+	db.Migrator().CreateConstraint(&model.Role{}, "fk_role_user")
 }
