@@ -20,5 +20,5 @@ type User struct {
 
 	// Foriegn Key
 	IdRole sql.NullInt64 `gorm:"column:id_role"`
-	Role   Role
+	Role   Role          `gorm:"foreignKey:id_role;references:id_role"`
 }

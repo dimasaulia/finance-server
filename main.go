@@ -6,6 +6,8 @@ import (
 	"finance/provider/http"
 	"finance/route"
 	"flag"
+
+	"github.com/go-playground/validator/v10"
 )
 
 func main() {
@@ -40,8 +42,11 @@ func main() {
 	server := http.NewHttpServer(port, fork)
 	app := server.Setup()
 
+	// Create Validator Instance
+	validation := validator.New()
+
 	// Setup Router
-	route.NewRoute(app).SetupMainRouter()
+	route.NewRoute(app, db, validation).SetupMainRouter()
 
 	server.Start(app)
 
