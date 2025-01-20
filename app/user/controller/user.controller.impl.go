@@ -35,3 +35,22 @@ func (h UserController) ManualRegistration(c *fiber.Ctx) error {
 		"data":    resp,
 	})
 }
+
+func (h UserController) ManualLogin(c *fiber.Ctx) error {
+	req := new(v.UserLoginRequest)
+	err := c.BodyParser(req)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	req.Provider = "MANUAL"
+	resp, err := h.Service.UserLogin(*req)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	return c.Status(200).JSON(fiber.Map{
+		"message": "Success Logingin uUer",
+		"data":    resp,
+	})
+}

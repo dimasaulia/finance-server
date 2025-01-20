@@ -15,6 +15,8 @@ func NewConfiguration(fileName string) IConfigutation {
 	}
 }
 
+var ENV *viper.Viper
+
 func (c *ConfigurationImpl) LoadEnv() *viper.Viper {
 	config := viper.New()
 	config.SetConfigFile(".env")
@@ -25,5 +27,6 @@ func (c *ConfigurationImpl) LoadEnv() *viper.Viper {
 		log.Error("Failed to read configuration file \n")
 	}
 
+	ENV = config
 	return config
 }

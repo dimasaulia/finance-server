@@ -3,6 +3,7 @@ package user
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2/log"
@@ -11,6 +12,7 @@ import (
 
 	v "finance/app/user/validation"
 	m "finance/model"
+	"finance/provider/jwt"
 )
 
 type UserService struct {
@@ -111,5 +113,87 @@ func (s UserService) UserRegistartion(req v.UserRegistrationRequest) (v.UserResp
 	resp.Role = baseRole.Name
 
 	// Returun
+	return resp, nil
+}
+
+func (s *UserService) UserLogin(req v.UserLoginRequest) (v.UserResponse, error) {
+	var resp v.UserResponse
+	var err error
+
+	// Validasi Request Body
+	if req.Provider == "MANUAL" {
+		err = s.Validate.Struct(v.ManualLoginRequest{
+			UsernameOrEmail: req.UsernameOrEmail,
+			Password:        req.Password,
+			Provider:        "MANUAL",
+		})
+	}
+
+	if req.Provider == "GOOGLE" {
+		err = s.Validate.Struct(v.ManualLoginRequest{
+			UsernameOrEmail: req.UsernameOrEmail,
+			ProviderId:      req.ProviderId,
+			Provider:        "GOOGLE",
+		})
+	}
+
+	if err != nil {
+		return resp, err
+	}
+
+	type UserQueryResult struct {
+		Email      string
+		Fullname   string
+		Username   string
+		RoleId     string
+		RoleName   string
+		Provider   string
+		Password   sql.NullString
+		ProviderId sql.NullString
+	}
+	var existingUser UserQueryResult
+	// Cari User berdasarkan username ataupun password
+	err = s.DB.Raw(`SELECT u.*, r.name role_name, r.id_role FROM "user" u JOIN "role" r ON r.id_role = u.id_role WHERE u.username = ?`, req.UsernameOrEmail).Scan(&existingUser).Error
+	fmt.Println(existingUser.RoleName)
+	if err != nil {
+		fmt.Println(err)
+		return resp, errors.New("username or password not match")
+	}
+
+	// Jika login manual maka lakukan validasi password
+	if req.Provider == "MANUAL" && existingUser.Password.Valid {
+		err = bcrypt.CompareHashAndPassword([]byte(existingUser.Password.String), []byte(req.Password))
+	}
+
+	// Jika login mengggunakan google maka lakukan validasi provider id
+	if req.Provider == "GOOGLE" && existingUser.ProviderId.Valid {
+		if existingUser.Password.String != req.ProviderId {
+			err = errors.New("provider id not match")
+		}
+	}
+
+	if err != nil {
+		return resp, errors.New("username or password not match")
+	}
+
+	// Generate JWT
+	tokenString, err := jwt.GenerateJWT(jwt.TokenData{
+		Username: existingUser.Username,
+		Email:    existingUser.Email,
+		Role:     existingUser.RoleName,
+		Fullname: existingUser.Fullname,
+	})
+
+	if err != nil {
+		return resp, errors.New("failed to process login, contact administrator")
+	}
+
+	// Response
+	resp.Token = &tokenString
+	resp.Email = existingUser.Email
+	resp.Fullname = existingUser.Fullname
+	resp.Username = existingUser.Username
+	resp.Role = existingUser.RoleName
+
 	return resp, nil
 }
