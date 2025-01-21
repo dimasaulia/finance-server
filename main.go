@@ -39,7 +39,8 @@ func main() {
 	}
 
 	// Create Server Instance
-	server := http.NewHttpServer(port, fork)
+	cookieSecret := env.GetString("COOKIE_SECRET")
+	server := http.NewHttpServer(port, fork, cookieSecret)
 	app := server.Setup()
 
 	// Create Validator Instance
