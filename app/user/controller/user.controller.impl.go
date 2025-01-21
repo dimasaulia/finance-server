@@ -54,3 +54,13 @@ func (h UserController) ManualLogin(c *fiber.Ctx) error {
 		"data":    resp,
 	})
 }
+
+func (h UserController) GoogleLogin(c *fiber.Ctx) error {
+
+	redirectUrl, err := h.Service.GenerateGoogleLoginUrl()
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	return c.Status(fiber.StatusTemporaryRedirect).Redirect(redirectUrl)
+}

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2/log"
@@ -13,17 +14,20 @@ import (
 	v "finance/app/user/validation"
 	m "finance/model"
 	"finance/provider/jwt"
+	g "finance/utility/generator"
 )
 
 type UserService struct {
-	DB       *gorm.DB
-	Validate *validator.Validate
+	DB             *gorm.DB
+	Validate       *validator.Validate
+	AdditionalData UserServiceAdditionalData
 }
 
-func NewUserService(db *gorm.DB, v *validator.Validate) IUserService {
+func NewUserService(db *gorm.DB, v *validator.Validate, data UserServiceAdditionalData) IUserService {
 	return &UserService{
-		DB:       db,
-		Validate: v,
+		DB:             db,
+		Validate:       v,
+		AdditionalData: data,
 	}
 }
 
@@ -196,4 +200,32 @@ func (s *UserService) UserLogin(req v.UserLoginRequest) (v.UserResponse, error) 
 	resp.Role = existingUser.RoleName
 
 	return resp, nil
+}
+
+func (s *UserService) GenerateGoogleLoginUrl() (string, error) {
+	googleBaseUrl := "https://accounts.google.com/o/oauth2/v2/auth"
+	googleClinetId := s.AdditionalData.GoogleClinetId // TODO: implement read from ENV
+	serverUrl := s.AdditionalData.ServerUrl           // TODO: implement read from ENV
+	callbackUrl := serverUrl + "/api/user/v1/login/google/callback"
+	state, err := g.GenerateRandomBase64Url()
+	if err != nil {
+		return "", errors.New("failed to generate token")
+	}
+	tempUrl, err := url.Parse(googleBaseUrl) // TODO: implement random string
+	if err != nil {
+		return "", errors.New("failed to generate google login link")
+	}
+
+	redirectUrl := *tempUrl
+	copyUrl := redirectUrl.Query()
+
+	copyUrl.Add("response_type", "code")
+	copyUrl.Add("scope", "openid email profile")
+	copyUrl.Add("redirect_uri", callbackUrl)
+	copyUrl.Add("prompt", "select_account")
+	copyUrl.Add("client_id", googleClinetId)
+	copyUrl.Add("state", state)
+	redirectUrl.RawQuery = copyUrl.Encode()
+
+	return redirectUrl.String(), nil
 }

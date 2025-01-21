@@ -46,7 +46,7 @@ func main() {
 	validation := validator.New()
 
 	// Setup Router
-	route.NewRoute(app, db, validation).SetupMainRouter()
+	route.NewRoute(app, db, validation, env).SetupMainRouter()
 
 	server.Start(app)
 
