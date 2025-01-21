@@ -14,14 +14,16 @@ type TokenData struct {
 	Email    string `json:"email"`
 	Role     string `json:"role"`
 	Fullname string `json:"fullname"`
+	j.RegisteredClaims
 }
 
 func GenerateJWT(d TokenData) (string, error) {
+
 	var secretKey = []byte(configuration.ENV.GetString("JWT_SECRET"))
-	t := j.NewWithClaims(j.SigningMethodHS256, j.MapClaims{
-		"exp":  time.Now().Add(time.Hour * 24).Unix(),
-		"data": d,
-	})
+	d.RegisteredClaims.ExpiresAt = j.NewNumericDate(time.Now().Add(1 * time.Hour))
+	d.RegisteredClaims.IssuedAt = j.NewNumericDate(time.Now())
+
+	t := j.NewWithClaims(j.SigningMethodHS256, d)
 
 	tokenString, err := t.SignedString(secretKey)
 	if err != nil {
@@ -31,20 +33,28 @@ func GenerateJWT(d TokenData) (string, error) {
 	return tokenString, nil
 }
 
-func VerifyJWT(tokenString string) error {
+func VerifyJWT(tokenString string) (*TokenData, error) {
 	var secretKey = []byte(configuration.ENV.GetString("JWT_SECRET"))
 
-	token, err := j.Parse(tokenString, func(token *j.Token) (interface{}, error) {
+	// Parse and validate the JWT token
+	token, err := j.ParseWithClaims(tokenString, &TokenData{}, func(token *j.Token) (interface{}, error) {
+		// Validate the signing method
+		if _, ok := token.Method.(*j.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return secretKey, nil
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if !token.Valid {
-		return fmt.Errorf("invalid token")
+	// Check if the token is valid
+	if claims, ok := token.Claims.(*TokenData); ok && token.Valid {
+		fmt.Println(claims.Fullname)
+		fmt.Println(claims.Email)
+		return claims, nil
 	}
 
-	return nil
+	return nil, fmt.Errorf("invalid token")
 }

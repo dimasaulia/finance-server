@@ -28,7 +28,7 @@ func NewRoute(app *fiber.App, db *gorm.DB, v *validator.Validate) IMainRouter {
 
 func (r *MainRouter) SetupMainRouter() {
 	// Home Route
-	hr.NewHomeRouter(r.App, hc.NewHomeController()).SetupHomeRouter()
+	hr.NewHomeRouter(r.App, hc.NewHomeController(), r.DB).SetupHomeRouter()
 
 	// User Route
 	userService := us.NewUserService(r.DB, r.Validate)

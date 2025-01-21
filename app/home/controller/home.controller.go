@@ -14,3 +14,9 @@ func (h HomeController) Home(c *fiber.Ctx) error {
 		"message": "Server Runing",
 	})
 }
+
+func (h HomeController) HomePrivate(c *fiber.Ctx) error {
+	return c.Status(200).JSON(fiber.Map{
+		"message": "Helo This Is Private Route",
+	})
+}
