@@ -3,6 +3,7 @@ package user
 import (
 	s "finance/app/user/service"
 	v "finance/app/user/validation"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -57,10 +58,17 @@ func (h UserController) ManualLogin(c *fiber.Ctx) error {
 
 func (h UserController) GoogleLogin(c *fiber.Ctx) error {
 
-	redirectUrl, err := h.Service.GenerateGoogleLoginUrl()
+	resp, err := h.Service.GenerateGoogleLoginUrl()
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 
-	return c.Status(fiber.StatusTemporaryRedirect).Redirect(redirectUrl)
+	c.Cookie(&fiber.Cookie{
+		Name:     "state",
+		Value:    resp.State,
+		Expires:  time.Now().Add(time.Minute * 2),
+		HTTPOnly: true,
+	})
+
+	return c.Status(fiber.StatusTemporaryRedirect).SendString(resp.RedirectUrl)
 }

@@ -54,3 +54,8 @@ type UserResponse struct {
 	Role     string  `json:"role"`
 	Token    *string `json:"token"`
 }
+
+type GoogleRedirectResponse struct {
+	RedirectUrl string
+	State       string
+}

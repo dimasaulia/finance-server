@@ -202,18 +202,19 @@ func (s *UserService) UserLogin(req v.UserLoginRequest) (v.UserResponse, error) 
 	return resp, nil
 }
 
-func (s *UserService) GenerateGoogleLoginUrl() (string, error) {
+func (s *UserService) GenerateGoogleLoginUrl() (v.GoogleRedirectResponse, error) {
+	var resp v.GoogleRedirectResponse
 	googleBaseUrl := "https://accounts.google.com/o/oauth2/v2/auth"
 	googleClinetId := s.AdditionalData.GoogleClinetId // TODO: implement read from ENV
 	serverUrl := s.AdditionalData.ServerUrl           // TODO: implement read from ENV
 	callbackUrl := serverUrl + "/api/user/v1/login/google/callback"
 	state, err := g.GenerateRandomBase64Url()
 	if err != nil {
-		return "", errors.New("failed to generate token")
+		return resp, errors.New("failed to generate token")
 	}
 	tempUrl, err := url.Parse(googleBaseUrl) // TODO: implement random string
 	if err != nil {
-		return "", errors.New("failed to generate google login link")
+		return resp, errors.New("failed to generate google login link")
 	}
 
 	redirectUrl := *tempUrl
@@ -227,5 +228,7 @@ func (s *UserService) GenerateGoogleLoginUrl() (string, error) {
 	copyUrl.Add("state", state)
 	redirectUrl.RawQuery = copyUrl.Encode()
 
-	return redirectUrl.String(), nil
+	resp.RedirectUrl = redirectUrl.String()
+	resp.State = state
+	return resp, nil
 }
