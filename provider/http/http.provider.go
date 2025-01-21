@@ -8,19 +8,22 @@ import (
 	"os"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/encryptcookie"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 )
 
 type HttpServerImpl struct {
-	Port string
-	Fork bool
+	Port         string
+	CookieSecret string
+	Fork         bool
 }
 
-func NewHttpServer(port string, fork bool) IHttpServer {
+func NewHttpServer(port string, fork bool, cookieSecret string) IHttpServer {
 	return &HttpServerImpl{
-		Port: port,
-		Fork: fork,
+		Port:         port,
+		Fork:         fork,
+		CookieSecret: cookieSecret,
 	}
 }
 
@@ -31,6 +34,10 @@ func (h *HttpServerImpl) Setup() *fiber.App {
 	}
 
 	app := fiber.New(appConfig)
+
+	app.Use(encryptcookie.New(encryptcookie.Config{
+		Key: h.CookieSecret,
+	}))
 
 	app.Use(requestid.New())
 	app.Use(logger.New(logger.Config{
