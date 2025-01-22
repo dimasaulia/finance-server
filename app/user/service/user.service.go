@@ -6,6 +6,7 @@ type IUserService interface {
 	UserRegistartion(req v.UserRegistrationRequest) (v.UserResponse, error)
 	UserLogin(req v.UserLoginRequest) (v.UserResponse, error)
 	GenerateGoogleLoginUrl() (v.GoogleRedirectResponse, error)
+	GoogleLoginCallback(payload string) (v.GoogleUserInfo, error)
 }
 
 type UserServiceAdditionalData struct {

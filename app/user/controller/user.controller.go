@@ -6,4 +6,5 @@ type IUserController interface {
 	ManualRegistration(c *fiber.Ctx) error
 	ManualLogin(c *fiber.Ctx) error
 	GoogleLogin(c *fiber.Ctx) error
+	GoogleLoginCallback(c *fiber.Ctx) error
 }

@@ -2,9 +2,12 @@ package user
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2/log"
@@ -34,6 +37,7 @@ func NewUserService(db *gorm.DB, v *validator.Validate, data UserServiceAddition
 func (s UserService) UserRegistartion(req v.UserRegistrationRequest) (v.UserResponse, error) {
 	var err error
 	var resp v.UserResponse
+	var newUser m.User
 	// Validate User Request
 	if req.Provider == "MANUAL" {
 		err = s.Validate.Struct(v.ManualRegistrationRequest{
@@ -61,13 +65,38 @@ func (s UserService) UserRegistartion(req v.UserRegistrationRequest) (v.UserResp
 	}
 
 	// Cek Existing User
-	var existingUser int64
-	s.DB.Model(&m.User{}).Where("username = ?", req.Username).Or("email = ?", req.Email).Count(&existingUser)
-	if existingUser > 0 && req.Provider == "MANUAL" {
+	type UserQueryResult struct {
+		IdUser     int64
+		Email      string
+		Fullname   string
+		Username   string
+		RoleId     string
+		RoleName   string
+		Provider   string
+		Password   sql.NullString
+		ProviderId sql.NullString
+	}
+	var existingUser UserQueryResult
+	countExistingUser := s.DB.Raw(`SELECT u.*, r.name role_name, r.id_role FROM "user" u JOIN "role" r ON r.id_role = u.id_role WHERE u.username = ? or u.email = ?`, req.Username, req.Email).Scan(&existingUser).RowsAffected
+	if countExistingUser > 0 && req.Provider == "MANUAL" {
 		return resp, errors.New("user already exist")
 	}
 
-	// TODO: Lakukan Linking jika user login dengan google tetapi user sudah tersimpan melalui registrasi manual sebelumnya
+	// Jika Awalnya Login manual (countExistingUser lebih dari 0) dan sekarang login dengan google, lakukan linking
+	if countExistingUser > 0 && req.Provider == "GOOGLE" {
+		if existingUser.Provider == "MANUAL" && !existingUser.ProviderId.Valid {
+			err = s.DB.Model(&m.User{}).Where("id_user", existingUser.IdUser).Update("provider_id", req.ProviderId).Error
+			if err != nil {
+				return resp, err
+			}
+		}
+
+		resp.Email = req.Email
+		resp.Fullname = req.Fullname
+		resp.Username = req.Username
+		resp.Role = existingUser.RoleName
+		return resp, nil
+	}
 
 	// Enkripsi Password Jika Registrasi Manual
 	if req.Provider == "MANUAL" {
@@ -87,15 +116,13 @@ func (s UserService) UserRegistartion(req v.UserRegistrationRequest) (v.UserResp
 	}
 
 	// Insert Ke DB
-	newUser := m.User{
-		Username:   req.Username,
-		Password:   sql.NullString{Valid: false},
-		Email:      req.Email,
-		Fullname:   req.Fullname,
-		Provider:   req.Provider,
-		ProviderId: sql.NullString{Valid: false},
-		IdRole:     sql.NullInt64{Int64: baseRole.Id_Role, Valid: true},
-	}
+	newUser.Username = req.Username
+	newUser.Password = sql.NullString{Valid: false}
+	newUser.Email = req.Email
+	newUser.Fullname = req.Fullname
+	newUser.Provider = req.Provider
+	newUser.ProviderId = sql.NullString{Valid: false}
+	newUser.IdRole = sql.NullInt64{Int64: baseRole.Id_Role, Valid: true}
 
 	if req.Provider == "GOOGLE" {
 		newUser.ProviderId = sql.NullString{String: req.ProviderId, Valid: true}
@@ -134,7 +161,7 @@ func (s *UserService) UserLogin(req v.UserLoginRequest) (v.UserResponse, error) 
 	}
 
 	if req.Provider == "GOOGLE" {
-		err = s.Validate.Struct(v.ManualLoginRequest{
+		err = s.Validate.Struct(v.GoogleLoginRequest{
 			UsernameOrEmail: req.UsernameOrEmail,
 			ProviderId:      req.ProviderId,
 			Provider:        "GOOGLE",
@@ -157,10 +184,8 @@ func (s *UserService) UserLogin(req v.UserLoginRequest) (v.UserResponse, error) 
 	}
 	var existingUser UserQueryResult
 	// Cari User berdasarkan username ataupun password
-	err = s.DB.Raw(`SELECT u.*, r.name role_name, r.id_role FROM "user" u JOIN "role" r ON r.id_role = u.id_role WHERE u.username = ?`, req.UsernameOrEmail).Scan(&existingUser).Error
-	fmt.Println(existingUser.RoleName)
+	err = s.DB.Raw(`SELECT u.*, r.name role_name, r.id_role FROM "user" u JOIN "role" r ON r.id_role = u.id_role WHERE u.username = ? or u.email = ?`, req.UsernameOrEmail, req.UsernameOrEmail).Or("u.email = ?", req.UsernameOrEmail).Scan(&existingUser).Error
 	if err != nil {
-		fmt.Println(err)
 		return resp, errors.New("username or password not match")
 	}
 
@@ -171,13 +196,13 @@ func (s *UserService) UserLogin(req v.UserLoginRequest) (v.UserResponse, error) 
 
 	// Jika login mengggunakan google maka lakukan validasi provider id
 	if req.Provider == "GOOGLE" && existingUser.ProviderId.Valid {
-		if existingUser.Password.String != req.ProviderId {
+		if existingUser.ProviderId.String != req.ProviderId {
 			err = errors.New("provider id not match")
 		}
 	}
 
 	if err != nil {
-		return resp, errors.New("username or password not match")
+		return resp, errors.New("username or password not matchs")
 	}
 
 	// Generate JWT
@@ -231,4 +256,74 @@ func (s *UserService) GenerateGoogleLoginUrl() (v.GoogleRedirectResponse, error)
 	resp.RedirectUrl = redirectUrl.String()
 	resp.State = state
 	return resp, nil
+}
+
+func (s *UserService) GoogleLoginCallback(payload string) (v.GoogleUserInfo, error) {
+	var profileInfoData v.GoogleUserInfo
+
+	// Load All Data
+	googleTokenBaseUrl := "https://oauth2.googleapis.com/token"
+	googleInfoBaseUrl := "https://www.googleapis.com/oauth2/v3/userinfo"
+	serverUrl := s.AdditionalData.ServerUrl // TODO: implement read from ENV
+	callbackUrl := serverUrl + "/api/user/v1/login/google/callback"
+
+	// Send request to get access token
+	tempTokenUrl, err := url.Parse(googleTokenBaseUrl)
+	if err != nil {
+		return profileInfoData, err
+	}
+	tokenUrl := *tempTokenUrl
+	copyUrl := tokenUrl.Query()
+	copyUrl.Add("client_secret", s.AdditionalData.GoogleClinetSecret)
+	copyUrl.Add("client_id", s.AdditionalData.GoogleClinetId)
+	copyUrl.Add("code", payload)
+	copyUrl.Add("grant_type", "authorization_code")
+	copyUrl.Add("redirect_uri", callbackUrl)
+	tokenUrl.RawQuery = copyUrl.Encode()
+
+	tokenReq, err := http.NewRequest(http.MethodPost, tokenUrl.String(), nil)
+	if err != nil {
+		return profileInfoData, err
+	}
+
+	tokenReq.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	tokenReq.Header.Add("Accept", "application/json")
+	tokenReq.Header.Add("User-Agent", "go_http")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	respToken, err := client.Do(tokenReq)
+	if err != nil {
+		return profileInfoData, err
+	}
+	defer respToken.Body.Close()
+
+	var tokenData v.OAuth2Token
+	err = json.NewDecoder(respToken.Body).Decode(&tokenData)
+	if err != nil {
+		return profileInfoData, err
+	}
+
+	// Send request to get user data
+	googleInfoUrl, err := url.Parse(googleInfoBaseUrl)
+	if err != nil {
+		return profileInfoData, err
+	}
+
+	profileInfoReq, err := http.NewRequest(http.MethodPost, googleInfoUrl.String(), nil)
+	if err != nil {
+		return profileInfoData, err
+	}
+
+	profileInfoReq.Header.Add("Authorization", fmt.Sprintf("Bearer %s", tokenData.AccessToken))
+	respInfo, err := client.Do(profileInfoReq)
+	if err != nil {
+		return profileInfoData, err
+	}
+
+	err = json.NewDecoder(respInfo.Body).Decode(&profileInfoData)
+	if err != nil {
+		return profileInfoData, err
+	}
+
+	return profileInfoData, nil
 }

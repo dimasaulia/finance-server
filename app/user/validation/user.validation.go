@@ -59,3 +59,21 @@ type GoogleRedirectResponse struct {
 	RedirectUrl string
 	State       string
 }
+
+type OAuth2Token struct {
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int    `json:"expires_in"`
+	IdToken     string `json:"id_token"`
+	Scope       string `json:"scope"`
+	TokenType   string `json:"token_type"`
+}
+
+type GoogleUserInfo struct {
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
+	FamilyName    string `json:"family_name"`
+	GivenName     string `json:"given_name"`
+	Name          string `json:"name"`
+	Picture       string `json:"picture"`
+	Sub           string `json:"sub"`
+}

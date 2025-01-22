@@ -51,8 +51,6 @@ func VerifyJWT(tokenString string) (*TokenData, error) {
 
 	// Check if the token is valid
 	if claims, ok := token.Claims.(*TokenData); ok && token.Valid {
-		fmt.Println(claims.Fullname)
-		fmt.Println(claims.Email)
 		return claims, nil
 	}
 
