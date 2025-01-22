@@ -73,7 +73,7 @@ func (h UserController) GoogleLogin(c *fiber.Ctx) error {
 		HTTPOnly: true,
 	})
 
-	return c.Status(fiber.StatusTemporaryRedirect).SendString(resp.RedirectUrl)
+	return c.Status(fiber.StatusTemporaryRedirect).Redirect(resp.RedirectUrl)
 }
 
 func (h UserController) GoogleLoginCallback(c *fiber.Ctx) error {
