@@ -1,6 +1,9 @@
 package route
 
 import (
+	account_controller "finance/app/account/controller"
+	ar "finance/app/account/router"
+	as "finance/app/account/service"
 	hc "finance/app/home/controller"
 	hr "finance/app/home/router"
 	uc "finance/app/user/controller"
@@ -45,4 +48,8 @@ func (r *MainRouter) SetupMainRouter() {
 	}
 	userService := us.NewUserService(r.DB, r.Validate, userServiceData)
 	ur.NewUserRouter(r.App, uc.NewUserController(userService)).SetupUserRouter()
+
+	// Account Router
+	accountService := as.NewAccountService(r.DB, r.Validate)
+	ar.NewAccountRouter(r.App, account_controller.NewAccountController(accountService), r.DB).SetupAccountRouter()
 }
