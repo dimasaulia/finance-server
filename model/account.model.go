@@ -2,6 +2,7 @@ package model
 
 import (
 	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -25,4 +26,13 @@ type Account struct {
 
 	IdUser sql.NullInt64 `gorm:"foreignKey:id_user;references:id_user"`
 	User   User          `gorm:"foreignKey:id_user;references:id_user"`
+}
+
+func (a Account) ValidateType(t string) error {
+	switch Type(t) {
+	case Bank, EWallet, Investation, Other:
+		return nil
+	default:
+		return errors.New("account type not allow")
+	}
 }

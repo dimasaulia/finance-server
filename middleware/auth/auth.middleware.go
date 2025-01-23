@@ -21,6 +21,7 @@ func LoginRequired(db *gorm.DB) fiber.Handler {
 		}
 
 		type UserQueryResult struct {
+			IdUser   int64
 			Email    string
 			Fullname string
 			Username string
@@ -29,7 +30,7 @@ func LoginRequired(db *gorm.DB) fiber.Handler {
 		}
 
 		var existingUser UserQueryResult
-		row := db.Raw(`SELECT u.email, u.fullname, u.username, u.provider, r.name role_name FROM "user" u JOIN "role" r ON r.id_role = u.id_role WHERE u.username = ?`, data.Username).Scan(&existingUser).RowsAffected
+		row := db.Raw(`SELECT u.id_user, u.email, u.fullname, u.username, u.provider, r.name role_name FROM "user" u JOIN "role" r ON r.id_role = u.id_role WHERE u.username = ?`, data.Username).Scan(&existingUser).RowsAffected
 		if row == 0 {
 			return fiber.NewError(fiber.StatusForbidden, "you are not authorize to access this menu")
 		}
@@ -38,6 +39,7 @@ func LoginRequired(db *gorm.DB) fiber.Handler {
 		c.Locals("fullname", existingUser.Fullname)
 		c.Locals("email", existingUser.Email)
 		c.Locals("role", existingUser.RoleName)
+		c.Locals("id_user", existingUser.IdUser)
 		return c.Next()
 	}
 }
