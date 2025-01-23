@@ -184,20 +184,24 @@ func (s *UserService) UserLogin(req v.UserLoginRequest) (v.UserResponse, error) 
 	}
 	var existingUser UserQueryResult
 	// Cari User berdasarkan username ataupun password
-	err = s.DB.Raw(`SELECT u.*, r.name role_name, r.id_role FROM "user" u JOIN "role" r ON r.id_role = u.id_role WHERE u.username = ? or u.email = ?`, req.UsernameOrEmail, req.UsernameOrEmail).Or("u.email = ?", req.UsernameOrEmail).Scan(&existingUser).Error
-	if err != nil {
+	row := s.DB.Raw(`SELECT u.*, r.name role_name, r.id_role FROM "user" u JOIN "role" r ON r.id_role = u.id_role WHERE u.username = ? or u.email = ?`, req.UsernameOrEmail, req.UsernameOrEmail).Or("u.email = ?", req.UsernameOrEmail).Scan(&existingUser).RowsAffected
+	if row == 0 {
 		return resp, errors.New("username or password not match")
 	}
 
 	// Jika login manual maka lakukan validasi password
 	if req.Provider == "MANUAL" && existingUser.Password.Valid {
 		err = bcrypt.CompareHashAndPassword([]byte(existingUser.Password.String), []byte(req.Password))
+		if err != nil {
+			return resp, errors.New("username or password not match")
+		}
 	}
 
 	// Jika login mengggunakan google maka lakukan validasi provider id
 	if req.Provider == "GOOGLE" && existingUser.ProviderId.Valid {
 		if existingUser.ProviderId.String != req.ProviderId {
 			err = errors.New("provider id not match")
+			return resp, err
 		}
 	}
 
