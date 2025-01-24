@@ -99,3 +99,19 @@ func (s AccountService) UserAccountList(filter *r.StandarGetRequest, data *av.Ac
 
 	return resp, nil
 }
+
+func (s AccountService) DeleteAccountList(id_account string, id_user string) (int64, error) {
+	var existingAccountCount int64
+	s.DB.Model(&m.Account{}).Where("id_account = ?", id_account).Where("id_user = ?", id_user).Count(&existingAccountCount)
+
+	if existingAccountCount == 0 {
+		return 0, errors.New("cant find account")
+	}
+
+	query := s.DB.Model(&m.Account{}).Delete("id_account = ?", id_account)
+	if query.Error != nil {
+		return 0, query.Error
+	}
+
+	return query.RowsAffected, nil
+}

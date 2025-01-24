@@ -66,3 +66,23 @@ func (ac AccountController) UserAccount(c *fiber.Ctx) error {
 		"success": true,
 	})
 }
+
+func (ac AccountController) DeleteAccount(c *fiber.Ctx) error {
+	var idUser string
+	var idAccount string = c.Params("id")
+
+	if lIdUser, ok := c.Locals("id_user").(int64); ok {
+		idUser = strconv.Itoa(int(lIdUser))
+	}
+
+	deleteAccountCount, err := ac.AccountService.DeleteAccountList(idAccount, idUser)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"message": "Successfully delete account",
+		"data":    deleteAccountCount,
+	})
+}
