@@ -13,3 +13,8 @@ type AccountCreationResponse struct {
 	Balance   float64 `json:"balance"`
 	Type      string  `json:"type"`
 }
+
+type AccountListRequest struct {
+	Type   string `json:"type"`
+	IdUser string `json:"id_user"`
+}

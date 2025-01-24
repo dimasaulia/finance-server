@@ -3,6 +3,8 @@ package account_controller
 import (
 	as "finance/app/account/service"
 	av "finance/app/account/validation"
+	g "finance/utility/generator"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
@@ -41,4 +43,26 @@ func (ac AccountController) CreateNewAccount(c *fiber.Ctx) error {
 		"data":    resp,
 	})
 
+}
+
+func (ac AccountController) UserAccount(c *fiber.Ctx) error {
+	data := av.AccountListRequest{}
+	data.Type = c.Query("type")
+
+	filterData := g.GenerateFilter(c)
+
+	if lIdUserm, ok := c.Locals("id_user").(int64); ok {
+		data.IdUser = strconv.Itoa(int(lIdUserm))
+	}
+
+	resp, err := ac.AccountService.UserAccountList(filterData, &data)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"data":    resp,
+		"message": "Successfully get all user account",
+		"success": true,
+	})
 }

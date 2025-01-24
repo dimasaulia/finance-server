@@ -4,6 +4,10 @@ import (
 	"errors"
 	av "finance/app/account/validation"
 	m "finance/model"
+	g "finance/utility/generator"
+	r "finance/utility/response"
+	"fmt"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"gorm.io/gorm"
@@ -63,6 +67,35 @@ func (s AccountService) CreateAccount(req av.AccountCreationRequest) (av.Account
 	resp.IdAccount = newAccount.IdAccount
 	resp.Name = req.Name
 	resp.Type = req.Type
+
+	return resp, nil
+}
+
+func (s AccountService) UserAccountList(filter *r.StandarGetRequest, data *av.AccountListRequest) ([]av.AccountCreationResponse, error) {
+	var resp []av.AccountCreationResponse
+	query := s.DB.Model(&m.Account{}).Select("id_account", "name", "balance", "type")
+	query.Where("id_user", data.IdUser)
+
+	if data.Type != "" {
+		query.Where("type", data.Type)
+	}
+
+	if filter.Search != "" {
+		query.Where("lower(name) LIKE ?", fmt.Sprintf("%%%s%%", strings.ToLower(filter.Search)))
+	}
+
+	offset, err := g.GenerateOffset(filter)
+	if err != nil {
+		return resp, err
+	}
+
+	query.Limit(offset.Limit).Offset(offset.Offset)
+	query.Order(fmt.Sprintf("name %v", g.GenerateSort(filter)))
+	query.Find(&resp)
+
+	if query.Error != nil {
+		return resp, query.Error
+	}
 
 	return resp, nil
 }
