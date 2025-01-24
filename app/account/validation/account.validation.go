@@ -15,6 +15,7 @@ type AccountCreationResponse struct {
 }
 
 type AccountListRequest struct {
-	Type   string `json:"type"`
-	IdUser string `json:"id_user"`
+	Type      string `json:"type"`
+	IdAccount string `json:"id_account"`
+	IdUser    string `json:"id_user"`
 }

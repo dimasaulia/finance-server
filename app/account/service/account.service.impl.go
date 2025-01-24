@@ -80,6 +80,10 @@ func (s AccountService) UserAccountList(filter *r.StandarGetRequest, data *av.Ac
 		query.Where("type", data.Type)
 	}
 
+	if data.IdAccount != "" {
+		query.Where("id_account", data.IdAccount)
+	}
+
 	if filter.Search != "" {
 		query.Where("lower(name) LIKE ?", fmt.Sprintf("%%%s%%", strings.ToLower(filter.Search)))
 	}
