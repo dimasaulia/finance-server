@@ -3,6 +3,7 @@ package transaction_service
 import (
 	v "finance/app/transaction/validation"
 	m "finance/model"
+	"fmt"
 
 	"github.com/go-playground/validator/v10"
 	"gorm.io/gorm"
@@ -20,7 +21,8 @@ func NewTransactionService(db *gorm.DB, v *validator.Validate) ITransactionServi
 	}
 }
 
-func (t TransactionService) CreateNewTransaction(req *v.NewTransactionRequest) (*v.TransactionResponse, error) {
+func (t TransactionService) CreateNewTransaction(req *v.NewTransactionRequest) (*[]v.TransactionResponse, error) {
+	var resp []v.TransactionResponse
 	// Validasi Request
 	err := t.Validator.Struct(req)
 	if err != nil {
@@ -43,10 +45,42 @@ func (t TransactionService) CreateNewTransaction(req *v.NewTransactionRequest) (
 		return nil, err
 	}
 
-	err = sourceTransaction.CrateNewTransaction(t.DB)
+	if req.IdAccountDestination != nil && req.IdAccount == *req.IdAccountDestination {
+		return nil, fmt.Errorf("source account and destination account cannot be the same")
+	}
+
+	tx := t.DB.Begin()
+	err = sourceTransaction.CrateNewTransaction(tx)
 	if err != nil {
+		tx.Rollback()
 		return nil, err
 	}
 
-	return nil, nil
+	// Jika transaksi adalah pemindahakn kekayaan antar akun
+	// Maka akun tujuan akan membuat transaksi kredit
+	if req.IdAccountDestination != nil && req.TransactionType == "DEBIT" && req.IdAccount != *req.IdAccountDestination {
+		destinationTransaction := m.Transaction{
+			Amount:          req.Amount,
+			TransactionType: m.Credit,
+			IdUser:          req.IdUser,
+			IdAccount:       *req.IdAccountDestination,
+			TransactionGroup: m.TransactionGroup{
+				IdUser:      req.IdUser,
+				Description: req.TransactionGroup,
+			},
+		}
+
+		err = destinationTransaction.CrateNewTransaction(tx)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+
+		resp = append(resp, *destinationTransaction.NewTransactionResponse())
+	}
+
+	tx.Commit()
+	resp = append(resp, *sourceTransaction.NewTransactionResponse())
+
+	return &resp, nil
 }

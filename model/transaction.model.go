@@ -2,11 +2,11 @@ package model
 
 import (
 	"errors"
+	v "finance/app/transaction/validation"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2/log"
 	"gorm.io/gorm"
 )
 
@@ -46,20 +46,20 @@ func (t Transaction) ValidateTransactionType() error {
 	}
 }
 
-func (t *Transaction) CrateNewTransaction(db *gorm.DB) error {
+func (t *Transaction) CrateNewTransaction(tx *gorm.DB) error {
 	// Cek Transaction Group
 	if t.TransactionGroup.Description == "" {
 		return errors.New("please fill transaction group")
 	}
 
-	err := t.TransactionGroup.AutoCreateTransactionGroup(db)
+	err := t.TransactionGroup.AutoCreateTransactionGroup(tx)
 	if err != nil {
 		return err
 	}
 
 	// Ambil Data Counter
 	var tgCounter TransactionCounter
-	err = db.Model(&TransactionCounter{}).Select("*").Where("id_transaction_group", t.TransactionGroup.IdTransactionGroup).First(&tgCounter).Error
+	err = tx.Model(&TransactionCounter{}).Select("*").Where("id_transaction_group", t.TransactionGroup.IdTransactionGroup).First(&tgCounter).Error
 	if err != nil {
 		return fmt.Errorf("failed when get counter, %v", err.Error())
 	}
@@ -72,10 +72,9 @@ func (t *Transaction) CrateNewTransaction(db *gorm.DB) error {
 		transactionInitial = "C"
 	}
 	var transactionCode string = fmt.Sprintf("%s%s%03d%02d%02d%v", transactionInitial, tgCounter.Descirption, tgCounter.Counter, now.Day(), now.Month(), now.Year())
-	log.Infof("Counter => %v", transactionCode)
 	for loopCounterFinder {
 		var existingTransaction int64
-		err := db.Model(&Transaction{}).Select("*").Where("transaction_code", transactionCode).Count(&existingTransaction).Error
+		err := tx.Model(&Transaction{}).Select("*").Where("transaction_code", transactionCode).Count(&existingTransaction).Error
 
 		if err != nil {
 			loopCounterFinder = false
@@ -92,9 +91,9 @@ func (t *Transaction) CrateNewTransaction(db *gorm.DB) error {
 
 	// Cek Account dan ambil amount
 	var userAccount Account
-	qAccount := db.Model(&Account{}).Select("*").Where("id_account", t.IdAccount).Where("id_user", t.IdUser).First(&userAccount)
+	qAccount := tx.Model(&Account{}).Select("*").Where("id_account", t.IdAccount).Where("id_user", t.IdUser).First(&userAccount)
 	if qAccount.Error != nil {
-		return qAccount.Error
+		return fmt.Errorf("failed when get account data. %v", qAccount.Error)
 	}
 
 	// DEBIT => SALDO BERKURANG; CREDIT => SALDO BERTAMBAH
@@ -117,30 +116,32 @@ func (t *Transaction) CrateNewTransaction(db *gorm.DB) error {
 	t.BalanceAfter = userAccount.Balance
 	t.TransactionCode = transactionCode
 
-	// Open DB Transaction
-	tx := db.Begin()
-
 	// Create transaction
 	err = tx.Create(&t).Error
 	if err != nil {
-		tx.Rollback()
 		return err
 	}
 
 	// Update Account, khususnya ammount
 	err = tx.Save(&userAccount).Where("id_account", userAccount.IdAccount).Where("id_user", userAccount.IdUser).Error
 	if err != nil {
-		tx.Rollback()
 		return err
 	}
 
 	// Update Counter
 	err = tx.Save(&tgCounter).Where("id_transaction_counter", tgCounter.IdTransactionCounter).Where("id_transaction_group", t.TransactionGroup.IdTransactionGroup).Error
 	if err != nil {
-		tx.Rollback()
 		return err
 	}
 
-	tx.Commit()
 	return nil
+}
+
+func (t *Transaction) NewTransactionResponse() *v.TransactionResponse {
+	return &v.TransactionResponse{
+		TransactionCode: t.TransactionCode,
+		Amount:          t.Amount,
+		BalanceBefore:   t.BalanceBefore,
+		BalanceAfter:    t.BalanceAfter,
+	}
 }

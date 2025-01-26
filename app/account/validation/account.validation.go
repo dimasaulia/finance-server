@@ -3,7 +3,7 @@ package account_validation
 type AccountCreationRequest struct {
 	IdUser  int64   `json:"id_user" validate:"required"`
 	Name    string  `json:"name" validate:"required"`
-	Balance float64 `json:"balance" validate:"required"`
+	Balance float64 `json:"balance" validate:"min=0"`
 	Type    string  `json:"type" validate:"required"`
 }
 
@@ -24,6 +24,6 @@ type AccountUpdateRequest struct {
 	IdUser    int64   `json:"id_user" validate:"required"`
 	IdAccount int64   `json:"id_account" validate:"required"`
 	Name      string  `json:"name" validate:"required"`
-	Balance   float64 `json:"balance" validate:"required"`
+	Balance   float64 `json:"balance" validate:"min=0"`
 	Type      string  `json:"type" validate:"required"`
 }

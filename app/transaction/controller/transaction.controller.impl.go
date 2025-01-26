@@ -30,14 +30,14 @@ func (t TransactionController) CreateNewTransaction(c *fiber.Ctx) error {
 		req.IdUser = lIdUser
 	}
 
-	_, err = t.TransactionService.CreateNewTransaction(req)
+	resp, err := t.TransactionService.CreateNewTransaction(req)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success": true,
-		"message": "Successfullt create new transaction",
-		"data":    []string{},
+		"message": "Successfully create new transaction",
+		"data":    resp,
 	})
 }
