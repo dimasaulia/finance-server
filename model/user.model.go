@@ -19,7 +19,8 @@ type User struct {
 	UpdatedAt  time.Time      `gorm:"column:updated_at;autoUpdateTime"`
 
 	// Foriegn Key
-	IdRole  sql.NullInt64 `gorm:"column:id_role"`
-	Role    Role          `gorm:"foreignKey:id_role;references:id_role"`
-	Account []Account     `gorm:"foreignKey:id_user;references:id_user"`
+	IdRole           sql.NullInt64      `gorm:"column:id_role"`
+	Role             Role               `gorm:"foreignKey:id_role;references:id_role"`
+	Account          []Account          `gorm:"foreignKey:id_user;references:id_user"`
+	TransactionGroup []TransactionGroup `gorm:"foreignKey:id_user;references:id_user"`
 }
