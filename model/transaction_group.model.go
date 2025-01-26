@@ -38,14 +38,14 @@ func (t *TransactionGroup) AutoCreateTransactionGroup(db *gorm.DB) error {
 	}
 
 	var existingCounter int64
-	err := db.Model(&TransactionCounter{}).Select("*").Count(&existingCounter).Error
+	err := db.Model(&TransactionCounter{}).Select("*").Count(&existingCounter).Where("id_transaction_group", t.IdTransactionGroup).Error
 	if err != nil {
 		return err
 	}
 
 	if existingCounter == 0 {
 		var newCounter TransactionCounter
-		newCounter.Counter = 0
+		newCounter.Counter = 1
 		newCounter.IdTransactionGroup = t.IdTransactionGroup
 
 		descArr := strings.Split(t.Description, " ")
