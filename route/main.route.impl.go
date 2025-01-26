@@ -6,6 +6,9 @@ import (
 	as "finance/app/account/service"
 	hc "finance/app/home/controller"
 	hr "finance/app/home/router"
+	tc "finance/app/transaction/controller"
+	tr "finance/app/transaction/router"
+	ts "finance/app/transaction/service"
 	uc "finance/app/user/controller"
 	ur "finance/app/user/router"
 	us "finance/app/user/service"
@@ -52,4 +55,8 @@ func (r *MainRouter) SetupMainRouter() {
 	// Account Router
 	accountService := as.NewAccountService(r.DB, r.Validate)
 	ar.NewAccountRouter(r.App, account_controller.NewAccountController(accountService), r.DB).SetupAccountRouter()
+
+	// Transaction Router
+	transactionService := ts.NewTransactionService(r.DB, r.Validate)
+	tr.NewTransactionRouter(r.App, tc.NewTransactionController(transactionService), r.DB).SetupTransactionRouter()
 }

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type TransactionType string
@@ -39,4 +41,55 @@ func (t Transaction) ValidateTransactionType() error {
 	default:
 		return errors.New("transaction type not allow")
 	}
+}
+
+func (t *Transaction) CrateNewTransaction(db *gorm.DB) error {
+	// Cek Transaction Group
+	if t.TransactionGroup.Description == "" {
+		return errors.New("please fill transaction group")
+	}
+
+	err := t.TransactionGroup.AutoCreateTransactionGroup(db)
+	if err != nil {
+		return err
+	}
+
+	// Cek Account dan ambil amount
+	var userAccount Account
+	qAccount := db.Model(&Account{}).Select("*").Where("id_account", t.IdAccount).Where("id_user", t.IdUser).First(&userAccount)
+	if qAccount.Error != nil {
+		return qAccount.Error
+	}
+
+	// DEBIT => SALDO BERKURANG; CREDIT => SALDO BERTAMBAH
+	if t.TransactionType == Debit && userAccount.Balance < t.Amount {
+		return errors.New("insufficient account balance for the requested debit transaction")
+	}
+	t.BalanceBefore = userAccount.Balance
+
+	// Kurangi atau tambah amount, serta lakukan update amount pada tabel account
+	if t.TransactionType == Debit {
+		userAccount.Balance = userAccount.Balance - t.Amount
+	}
+
+	if t.TransactionType == Credit {
+		userAccount.Balance = userAccount.Balance + t.Amount
+	}
+
+	err = db.Save(&userAccount).Where("id_account", userAccount.IdAccount).Where("id_user", userAccount.IdUser).Error
+	if err != nil {
+		return err
+	}
+
+	t.IdTransactionGroup = t.TransactionGroup.IdTransactionGroup
+	t.IdAccount = userAccount.IdAccount
+	t.BalanceAfter = userAccount.Balance
+
+	// Create transaction
+	err = db.Create(&t).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
