@@ -1,6 +1,7 @@
 package transaction_service
 
 import (
+	"database/sql"
 	v "finance/app/transaction/validation"
 	m "finance/model"
 	"fmt"
@@ -60,10 +61,11 @@ func (t TransactionService) CreateNewTransaction(req *v.NewTransactionRequest) (
 	// Maka akun tujuan akan membuat transaksi kredit
 	if req.IdAccountDestination != nil && req.TransactionType == "DEBIT" && req.IdAccount != *req.IdAccountDestination {
 		destinationTransaction := m.Transaction{
-			Amount:          req.Amount,
-			TransactionType: m.Credit,
-			IdUser:          req.IdUser,
-			IdAccount:       *req.IdAccountDestination,
+			Amount:               req.Amount,
+			TransactionType:      m.Credit,
+			IdUser:               req.IdUser,
+			IdAccount:            *req.IdAccountDestination,
+			IdRelatedTransaction: sql.NullInt64{Int64: sourceTransaction.IdTransaction, Valid: true},
 			TransactionGroup: m.TransactionGroup{
 				IdUser:      req.IdUser,
 				Description: req.TransactionGroup,

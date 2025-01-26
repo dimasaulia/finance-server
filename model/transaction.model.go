@@ -1,6 +1,7 @@
 package model
 
 import (
+	"database/sql"
 	"errors"
 	v "finance/app/transaction/validation"
 	"fmt"
@@ -29,12 +30,14 @@ type Transaction struct {
 	UpdatedAt       time.Time       `gorm:"autoUpdateTime"`
 
 	// Foreign Key
-	IdTransactionGroup int64            `gorm:"column:id_transaction_group;foreignKey:id_transaction_group;references:id_transaction_group"`
-	TransactionGroup   TransactionGroup `gorm:"foreignKey:id_transaction_group;references:id_transaction_group"`
-	IdUser             int64            `gorm:"column:id_user;foreignKey:id_user;references:id_user"`
-	User               User             `gorm:"column:id_user;foreignKey:id_user;references:id_user"`
-	IdAccount          int64            `gorm:"column:id_account;foreignKey:id_account;references:id_account"`
-	Account            Account          `gorm:"foreignKey:id_account;references:id_account"`
+	IdTransactionGroup   int64            `gorm:"column:id_transaction_group;foreignKey:id_transaction_group;references:id_transaction_group"`
+	TransactionGroup     TransactionGroup `gorm:"foreignKey:id_transaction_group;references:id_transaction_group"`
+	IdUser               int64            `gorm:"column:id_user;foreignKey:id_user;references:id_user"`
+	User                 User             `gorm:"column:id_user;foreignKey:id_user;references:id_user"`
+	IdAccount            int64            `gorm:"column:id_account;foreignKey:id_account;references:id_account"`
+	Account              Account          `gorm:"foreignKey:id_account;references:id_account"`
+	IdRelatedTransaction sql.NullInt64    `gorm:"column:id_related_transaction;foreignKey:id_related_transaction;references:id_transaction"`
+	RelatedTransaction   []Transaction    `gorm:"foreignKey:id_related_transaction;references:id_transaction"`
 }
 
 func (t Transaction) ValidateTransactionType() error {

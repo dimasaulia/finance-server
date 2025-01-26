@@ -73,6 +73,8 @@ func (p *PSQL) StartMigration(db *gorm.DB) {
 	db.Migrator().CreateConstraint(&model.Account{}, "fk_account_transaction")
 	db.Migrator().CreateConstraint(&model.TransactionGroup{}, "TransactionGroup")
 	db.Migrator().CreateConstraint(&model.TransactionGroup{}, "fk_transaction_group_transaction")
+	db.Migrator().CreateConstraint(&model.Transaction{}, "Transaction")
+	db.Migrator().CreateConstraint(&model.Transaction{}, "fk_transaction_related_transaction")
 
 	db.Migrator().CreateConstraint(&model.TransactionGroup{}, "TransactionCounter")
 	db.Migrator().CreateConstraint(&model.TransactionGroup{}, "fk_transaction_group_transaction_counter")
