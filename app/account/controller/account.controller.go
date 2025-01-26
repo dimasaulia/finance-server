@@ -6,4 +6,5 @@ type IAccountController interface {
 	CreateNewAccount(c *fiber.Ctx) error
 	UserAccount(c *fiber.Ctx) error
 	DeleteAccount(c *fiber.Ctx) error
+	UpdateAccount(c *fiber.Ctx) error
 }

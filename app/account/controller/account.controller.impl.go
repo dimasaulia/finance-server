@@ -86,3 +86,26 @@ func (ac AccountController) DeleteAccount(c *fiber.Ctx) error {
 		"data":    deleteAccountCount,
 	})
 }
+
+func (ac AccountController) UpdateAccount(c *fiber.Ctx) error {
+	req := new(av.AccountUpdateRequest)
+	err := c.BodyParser(req)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	if lIdUserm, ok := c.Locals("id_user").(int64); ok {
+		req.IdUser = lIdUserm
+	}
+
+	resp, err := ac.AccountService.UpdateAccount(*req)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"message": "Successfully delete account",
+		"data":    resp,
+	})
+}

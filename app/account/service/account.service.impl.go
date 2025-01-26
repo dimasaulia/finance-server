@@ -1,6 +1,7 @@
 package account_service
 
 import (
+	"database/sql"
 	"errors"
 	av "finance/app/account/validation"
 	m "finance/model"
@@ -118,4 +119,41 @@ func (s AccountService) DeleteAccountList(id_account string, id_user string) (in
 	}
 
 	return query.RowsAffected, nil
+}
+
+func (s AccountService) UpdateAccount(data av.AccountUpdateRequest) (av.AccountCreationResponse, error) {
+	var resp av.AccountCreationResponse
+	err := s.Validator.Struct(data)
+	if err != nil {
+		return resp, err
+	}
+
+	err = m.Account{}.ValidateType(data.Type)
+	if err != nil {
+		return resp, err
+	}
+
+	// Cek Apakah User Memiliki Akun
+	var existingAccountCount int64
+	err = s.DB.Model(&m.Account{}).Select("id_account").Where("id_account", data.IdAccount).Where("id_user", data.IdUser).Count(&existingAccountCount).Error
+	if err != nil {
+		return resp, err
+	}
+
+	if existingAccountCount == 0 {
+		return resp, errors.New("cant find yor account")
+	}
+
+	// Update Akun
+	updateQuery := s.DB.Save(&m.Account{IdAccount: data.IdAccount, Balance: data.Balance, Name: data.Name, Type: m.Type(data.Type), IdUser: sql.NullInt64{Int64: data.IdUser, Valid: true}}).Where("id_account", data.IdAccount)
+	if updateQuery.Error != nil {
+		return resp, err
+	}
+
+	resp.Balance = data.Balance
+	resp.IdAccount = data.IdAccount
+	resp.Name = data.Name
+	resp.Type = data.Type
+
+	return resp, nil
 }

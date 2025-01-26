@@ -31,6 +31,7 @@ func (h *AccountRouter) SetupAccountRouter() {
 
 	accountV1.Use(am.LoginRequired(h.DB))
 	accountV1.Post("/", h.Controller.CreateNewAccount)
+	accountV1.Put("/", h.Controller.UpdateAccount)
 	accountV1.Get("/", h.Controller.UserAccount)
 	accountV1.Delete("/:id", h.Controller.DeleteAccount)
 }

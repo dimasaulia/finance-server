@@ -19,3 +19,11 @@ type AccountListRequest struct {
 	IdAccount string `json:"id_account"`
 	IdUser    string `json:"id_user"`
 }
+
+type AccountUpdateRequest struct {
+	IdUser    int64   `json:"id_user" validate:"required"`
+	IdAccount int64   `json:"id_account" validate:"required"`
+	Name      string  `json:"name" validate:"required"`
+	Balance   float64 `json:"balance" validate:"required"`
+	Type      string  `json:"type" validate:"required"`
+}
