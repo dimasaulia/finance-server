@@ -38,21 +38,21 @@ func (t *TransactionGroup) AutoCreateTransactionGroup(db *gorm.DB) error {
 	}
 
 	var existingCounter int64
-	err := db.Model(&TransactionCounter{}).Select("*").Count(&existingCounter).Where("id_transaction_group", t.IdTransactionGroup).Error
+	var newCounter TransactionCounter
+	newCounter.Counter = 1
+	newCounter.IdTransactionGroup = t.IdTransactionGroup
+
+	descArr := strings.Split(t.Description, " ")
+	for _, v := range descArr {
+		newCounter.Descirption = fmt.Sprintf("%v%v", newCounter.Descirption, v[:1])
+	}
+
+	err := db.Model(&TransactionCounter{}).Select("*").Where("id_transaction_group", t.IdTransactionGroup).Where("descirption", newCounter.Descirption).Count(&existingCounter).Error
 	if err != nil {
 		return err
 	}
 
 	if existingCounter == 0 {
-		var newCounter TransactionCounter
-		newCounter.Counter = 1
-		newCounter.IdTransactionGroup = t.IdTransactionGroup
-
-		descArr := strings.Split(t.Description, " ")
-		for _, v := range descArr {
-			newCounter.Descirption = fmt.Sprintf("%v%v", newCounter.Descirption, v[:1])
-		}
-
 		err := db.Create(&newCounter).Error
 		if err != nil {
 			return fmt.Errorf("failed to create transaction counter, %v", err)
