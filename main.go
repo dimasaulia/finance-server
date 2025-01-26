@@ -6,6 +6,7 @@ import (
 	"finance/provider/http"
 	"finance/route"
 	"flag"
+	"regexp"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -44,11 +45,18 @@ func main() {
 	app := server.Setup()
 
 	// Create Validator Instance
+
 	validation := validator.New()
+	validation.RegisterValidation("alphaspace", ValidateAlphaNumSpace)
 
 	// Setup Router
 	route.NewRoute(app, db, validation, env).SetupMainRouter()
 
 	server.Start(app)
 
+}
+
+func ValidateAlphaNumSpace(fl validator.FieldLevel) bool {
+	var regexAlphaNumSpace = regexp.MustCompile("^[ \\p{L}\\p{N}]+$")
+	return regexAlphaNumSpace.MatchString(fl.Field().String())
 }
