@@ -53,6 +53,7 @@ func (p *PSQL) StartMigration(db *gorm.DB) {
 		&model.User{},
 		&model.Account{},
 		&model.TransactionGroup{},
+		&model.Transaction{},
 	)
 
 	db.Migrator().CreateConstraint(&model.Role{}, "user")
@@ -63,4 +64,12 @@ func (p *PSQL) StartMigration(db *gorm.DB) {
 
 	db.Migrator().CreateConstraint(&model.User{}, "TransactionGroup")
 	db.Migrator().CreateConstraint(&model.User{}, "fk_user_transaction_group")
+
+	// Foreign Key Untuk Tabel Transaction
+	db.Migrator().CreateConstraint(&model.User{}, "Transaction")
+	db.Migrator().CreateConstraint(&model.User{}, "fk_user_transaction")
+	db.Migrator().CreateConstraint(&model.Account{}, "Account")
+	db.Migrator().CreateConstraint(&model.Account{}, "fk_account_transaction")
+	db.Migrator().CreateConstraint(&model.TransactionGroup{}, "TransactionGroup")
+	db.Migrator().CreateConstraint(&model.TransactionGroup{}, "fk_transaction_group_transaction")
 }

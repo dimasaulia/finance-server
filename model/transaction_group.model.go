@@ -15,8 +15,9 @@ type TransactionGroup struct {
 	CreatedAt          time.Time `gorm:"autoCreateTime"`
 	UpdatedAt          time.Time `gorm:"autoUpdateTime"`
 	// Foreign Key
-	IdUser int64 `gorm:"column:id_user;foreignKey:id_user;references:id_user"`
-	User   User  `gorm:"column:id_user;foreignKey:id_user;references:id_user"`
+	IdUser      int64         `gorm:"column:id_user;foreignKey:id_user;references:id_user"`
+	User        User          `gorm:"column:id_user;foreignKey:id_user;references:id_user"`
+	Transaction []Transaction `gorm:"foreignKey:id_transaction_group;references:id_transaction_group"`
 }
 
 func (t TransactionGroup) AutoCreateTransactionGroup(db *gorm.DB) error {

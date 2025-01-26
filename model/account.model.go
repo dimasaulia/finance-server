@@ -24,8 +24,9 @@ type Account struct {
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime"`
 
-	IdUser sql.NullInt64 `gorm:"foreignKey:id_user;references:id_user"`
-	User   User          `gorm:"foreignKey:id_user;references:id_user"`
+	IdUser      sql.NullInt64 `gorm:"foreignKey:id_user;references:id_user"`
+	User        User          `gorm:"foreignKey:id_user;references:id_user"`
+	Transaction []Transaction `gorm:"foreignKey:id_account;references:id_account"`
 }
 
 func (a Account) ValidateType(t string) error {
