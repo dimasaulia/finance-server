@@ -5,13 +5,14 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const TB_TRANSACTION_GROUP = "transaction_group"
 
 type TransactionGroup struct {
 	IdTransactionGroup int64     `gorm:"column:id_transaction_group;primaryKey;autoIncrement"`
-	Description        string    `gorm:"column:transaction"`
+	Description        string    `gorm:"column:description"`
 	CreatedAt          time.Time `gorm:"autoCreateTime"`
 	UpdatedAt          time.Time `gorm:"autoUpdateTime"`
 	// Foreign Key
@@ -20,12 +21,15 @@ type TransactionGroup struct {
 	Transaction []Transaction `gorm:"foreignKey:id_transaction_group;references:id_transaction_group"`
 }
 
-func (t TransactionGroup) AutoCreateTransactionGroup(db *gorm.DB) error {
-	var exidtingTransactionGroupCount int64
-	db.Model(&t).Select("id_transaction_group").Where("lower(description)", strings.ToLower(t.Description)).Where("id_user", t.IdUser).Count(&exidtingTransactionGroupCount)
+func (t *TransactionGroup) AutoCreateTransactionGroup(db *gorm.DB) error {
+	t.Description = strings.ToUpper(t.Description)
+	tgQuery := db.Model(&t).Select("*").Where("UPPER(description) = ?", (t.Description)).Where("id_user", t.IdUser).First(t)
+	if tgQuery.Error != nil && tgQuery.RowsAffected != 0 {
+		return tgQuery.Error
+	}
 
-	if exidtingTransactionGroupCount == 0 {
-		err := db.Create(&t).Error
+	if tgQuery.RowsAffected == 0 {
+		err := db.Create(&t).Clauses(clause.Returning{}).Error
 		if err != nil {
 			return err
 		}
