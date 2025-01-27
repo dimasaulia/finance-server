@@ -111,7 +111,7 @@ func (t TransactionService) UpdateTransaction(req *v.UpdateTransactionRequest) (
 	}
 
 	tx := t.DB.Begin()
-	err = transaction.UpdateExistingTransaction(tx, req.IdAccountDestination)
+	resp, err := transaction.UpdateExistingTransaction(tx, req.IdAccountDestination)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
@@ -119,5 +119,5 @@ func (t TransactionService) UpdateTransaction(req *v.UpdateTransactionRequest) (
 
 	tx.Commit()
 
-	return nil, nil
+	return resp, nil
 }

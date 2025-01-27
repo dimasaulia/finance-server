@@ -53,13 +53,13 @@ func (t TransactionController) UpdateTransaction(c *fiber.Ctx) error {
 	if lIdUser, ok := c.Locals("id_user").(int64); ok {
 		req.IdUser = lIdUser
 	}
-	_, err = t.TransactionService.UpdateTransaction(req)
+	resp, err := t.TransactionService.UpdateTransaction(req)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"success": true,
 		"message": "Successfully update transaction",
-		"data":    "",
+		"data":    resp,
 	})
 }

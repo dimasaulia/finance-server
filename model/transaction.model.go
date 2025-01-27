@@ -145,32 +145,33 @@ func (t *Transaction) NewTransactionResponse() *v.TransactionResponse {
 	}
 }
 
-func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestination *int64) error {
+func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestination *int64) (*[]v.TransactionResponse, error) {
+	var resp []v.TransactionResponse
 	// Cek Transaction
 	var userTransaction Transaction
 	qTransaction := tx.Model(&Transaction{}).Select("*").Where("id_transaction", t.IdTransaction).Where("id_user", t.IdUser).First(&userTransaction)
 	if qTransaction.Error != nil {
-		return fmt.Errorf("error when try to find your transaction. %v", qTransaction.Error)
+		return nil, fmt.Errorf("error when try to find your transaction. %v", qTransaction.Error)
 	}
 	// Cek Account
 	var userAccount Account
 	qAccount := tx.Model(&Account{}).Select("*").Where("id_account", userTransaction.IdAccount).Where("id_user", userTransaction.IdUser).First(&userAccount)
 	if qAccount.Error != nil {
-		return fmt.Errorf("error when try to find your account. %v", qAccount.Error)
+		return nil, fmt.Errorf("error when try to find your account. %v", qAccount.Error)
 	}
 	// Cek Apakah Terdapat transaksi yang lebih baru, jika ada maka transaksi ini tidak bisa di edit, dan user harus menghapus transaksi terbarunya
 	var newerUserTransactionCount int64
 	qNewerTransaction := tx.Model(&Transaction{}).Where("id_account", userAccount.IdAccount).Where("id_user", t.IdUser).Where("created_at > ?", userTransaction.CreatedAt).Count(&newerUserTransactionCount)
 	if qNewerTransaction.Error != nil {
-		return qNewerTransaction.Error
+		return nil, qNewerTransaction.Error
 	}
-	if newerUserTransactionCount > 1 {
-		return fmt.Errorf("this transaction cannot be modified because a newer transaction exists. please delete the latest transaction before making changes")
+	if newerUserTransactionCount > 0 {
+		return nil, fmt.Errorf("this transaction cannot be modified because a newer transaction exists. please delete the latest transaction before making changes")
 	}
 
 	err := t.TransactionGroup.AutoCreateTransactionGroup(tx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Reset Nilai ammount pada account ke nilai awal
@@ -187,7 +188,7 @@ func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestina
 	// Ubah nilai ammount ke nilai baru
 	// DEBIT => SALDO BERKURANG; CREDIT => SALDO BERTAMBAH
 	if t.TransactionType == Debit && userAccount.Balance < t.Amount {
-		return errors.New("insufficient account balance for the requested debit transaction")
+		return nil, errors.New("insufficient account balance for the requested debit transaction")
 	}
 
 	userTransaction.BalanceBefore = userAccount.Balance
@@ -207,38 +208,50 @@ func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestina
 	// Update transaction record
 	err = tx.Save(&userAccount).Error
 	if err != nil {
-		return fmt.Errorf("failed to save account update. %v", err)
+		return nil, fmt.Errorf("failed to save account update. %v", err)
 	}
 
 	err = tx.Save(&userTransaction).Error
 	if err != nil {
-		return fmt.Errorf("failed to save transaction update. %v", err)
+		return nil, fmt.Errorf("failed to save transaction update. %v", err)
 	}
+
+	resp = append(resp, *userTransaction.NewTransactionResponse())
 
 	// Find Other Related Transaction
 	var otherRelatedTransaction []Transaction
 	qOtherTransaction := tx.Model(&Transaction{}).Select("*").Where("id_related_transaction", userTransaction.IdTransaction).Where("id_user", userTransaction.IdUser).Scan(&otherRelatedTransaction)
 	if qOtherTransaction.Error != nil {
-		return fmt.Errorf("failed to get other related transaction. %v", qOtherTransaction.Error.Error())
+		return nil, fmt.Errorf("failed to get other related transaction. %v", qOtherTransaction.Error.Error())
 	}
 
 	if qOtherTransaction.RowsAffected > 0 && newIdAccountDestination == nil {
-		return errors.New("the transaction you are trying to update is linked to other transactions. you must specify a new destination account for this transaction")
+		return nil, errors.New("the transaction you are trying to update is linked to other transactions. you must specify a new destination account for this transaction")
 	}
 
 	for _, v := range otherRelatedTransaction {
 		var relatedUserAccount Account
 		qRelatedAccount := tx.Model(&Account{}).Select("*").Where("id_account", v.IdAccount).Where("id_user", v.IdUser).First(&relatedUserAccount)
 		if qRelatedAccount.Error != nil {
-			return fmt.Errorf("error when try to find your related account. %v", qRelatedAccount.Error)
+			return nil, fmt.Errorf("error when try to find your related account. %v", qRelatedAccount.Error)
 		}
 
 		// Jika user mencoba untuk melakukan reverse jenis transaksi
 		// Jika user melakukan edit dan mengubah debit menjadi credit pada transaksi utama
 		// Dan jika terdapat related transaction yang mengikat pada akun pertama
 		// Maka batalkan operasi
-		if v.TransactionType == Credit && v.IdRelatedTransaction.Valid {
-			return fmt.Errorf("transaction type cannot be changed because this transaction has linked sub-transactions")
+		if t.TransactionType == Credit && v.IdRelatedTransaction.Valid {
+			return nil, fmt.Errorf("transaction type cannot be changed because this transaction has linked sub-transactions")
+		}
+
+		// Cek Apakah Terdapat transaksi yang lebih baru, jika ada maka transaksi ini tidak bisa di edit, dan user harus menghapus transaksi terbarunya
+		var newerRelatedUserTransactionCount int64
+		qNewerRelatedTransaction := tx.Model(&Transaction{}).Where("id_account", relatedUserAccount.IdAccount).Where("id_user", relatedUserAccount.IdUser).Where("created_at > ?", v.CreatedAt).Count(&newerRelatedUserTransactionCount)
+		if qNewerRelatedTransaction.Error != nil {
+			return nil, qNewerRelatedTransaction.Error
+		}
+		if newerRelatedUserTransactionCount >= 1 {
+			return nil, fmt.Errorf("this transaction cannot be modified because a related transaction has a newer transaction. please delete the latest transaction before making changes")
 		}
 
 		log.Infof("Related Account ID: %v\n", relatedUserAccount.IdAccount)
@@ -257,7 +270,7 @@ func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestina
 		// Yang berarti adalah proses debit pada related transaction,
 		// lakukan validasi terlebih dahulu apakah related account memiliki jumlah yang ingin di pindahkan
 		if (t.TransactionType == Credit) && (t.Amount > relatedUserAccount.Balance) {
-			return errors.New("insufficient account balance for the requested related credit on related transaction")
+			return nil, errors.New("insufficient account balance for the requested related credit on related transaction")
 		}
 
 		v.BalanceBefore = relatedUserAccount.Balance
@@ -287,13 +300,15 @@ func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestina
 		// Update transaction record
 		err = tx.Model(&Transaction{}).Where("id_transaction", v.IdTransaction).Where("id_user", v.IdUser).Updates(v).Error
 		if err != nil {
-			return fmt.Errorf("failed to save related transaction update. %v", err)
+			return nil, fmt.Errorf("failed to save related transaction update. %v", err)
 		}
 
 		err := tx.Save(&relatedUserAccount).Error
 		if err != nil {
-			return fmt.Errorf("failed to save related account update. %v", err)
+			return nil, fmt.Errorf("failed to save related account update. %v", err)
 		}
+
+		resp = append(resp, *v.NewTransactionResponse())
 	}
-	return nil
+	return &resp, nil
 }
