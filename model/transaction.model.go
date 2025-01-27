@@ -29,6 +29,7 @@ type Transaction struct {
 	BalanceAfter    float64         `gorm:"column:balance_after;type:decimal(15,2)"`
 	CreatedAt       time.Time       `gorm:"autoCreateTime"`
 	UpdatedAt       time.Time       `gorm:"autoUpdateTime"`
+	Description     sql.NullString  `gorm:"column:description"`
 
 	// Foreign Key
 	IdTransactionGroup   int64            `gorm:"column:id_transaction_group;foreignKey:id_transaction_group;references:id_transaction_group"`
@@ -146,8 +147,9 @@ func (t *Transaction) NewTransactionResponse() *v.TransactionResponse {
 	}
 }
 
-func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestination *int64) (*[]v.TransactionResponse, error) {
+func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestination *int64, adminFee sql.NullFloat64) (*[]v.TransactionResponse, error) {
 	var resp []v.TransactionResponse
+	var sourceAmount float64
 	// Cek Transaction
 	var userTransaction Transaction
 	qTransaction := tx.Model(&Transaction{}).Select("*").Where("id_transaction", t.IdTransaction).Where("id_user", t.IdUser).First(&userTransaction)
@@ -190,25 +192,31 @@ func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestina
 		userAccount.Balance = userAccount.Balance - userTransaction.Amount
 	}
 
+	sourceAmount = t.Amount
+	if adminFee.Valid {
+		sourceAmount = sourceAmount + adminFee.Float64
+	}
+
 	// Ubah nilai ammount ke nilai baru
 	// DEBIT => SALDO BERKURANG; CREDIT => SALDO BERTAMBAH
-	if t.TransactionType == Debit && userAccount.Balance < t.Amount {
+	if t.TransactionType == Debit && userAccount.Balance < sourceAmount {
 		return nil, errors.New("insufficient account balance for the requested debit transaction")
 	}
 
 	userTransaction.BalanceBefore = userAccount.Balance
 	if t.TransactionType == Debit {
-		userAccount.Balance = userAccount.Balance - t.Amount
+		userAccount.Balance = userAccount.Balance - sourceAmount
 	}
 
 	if t.TransactionType == Credit {
-		userAccount.Balance = userAccount.Balance + t.Amount
+		userAccount.Balance = userAccount.Balance + sourceAmount
 	}
 
 	userTransaction.IdTransactionGroup = t.TransactionGroup.IdTransactionGroup
 	userTransaction.TransactionType = t.TransactionType
 	userTransaction.BalanceAfter = userAccount.Balance
-	userTransaction.Amount = t.Amount
+	userTransaction.Amount = sourceAmount
+	userTransaction.Description = t.Description
 
 	// Update transaction record
 	err = tx.Save(&userAccount).Error
@@ -234,11 +242,19 @@ func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestina
 		return nil, errors.New("the transaction you are trying to update is linked to other transactions. you must specify a new destination account for this transaction")
 	}
 
+	// TODO: Refactor Related Transaction into seprate function
 	for _, v := range otherRelatedTransaction {
-		var relatedUserAccount Account
+		var relatedUserAccount, relatedUserAccount2 Account // relatedUserAccount2 digunakan ketika akun tujuan berbeda
 		qRelatedAccount := tx.Model(&Account{}).Select("*").Where("id_account", v.IdAccount).Where("id_user", v.IdUser).First(&relatedUserAccount)
 		if qRelatedAccount.Error != nil {
 			return nil, fmt.Errorf("error when try to find your related account. %v", qRelatedAccount.Error)
+		}
+
+		if v.IdAccount != *newIdAccountDestination {
+			qRelatedAccount2 := tx.Model(&Account{}).Select("*").Where("id_account", &newIdAccountDestination).Where("id_user", v.IdUser).First(&relatedUserAccount2)
+			if qRelatedAccount2.Error != nil {
+				return nil, fmt.Errorf("error when try to find your related account. %v", qRelatedAccount2.Error)
+			}
 		}
 
 		// Jika user mencoba untuk melakukan reverse jenis transaksi
@@ -260,8 +276,9 @@ func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestina
 		}
 
 		log.Infof("Related Account ID: %v\n", relatedUserAccount.IdAccount)
+		log.Infof("Related Account 2 Name: %v\n", relatedUserAccount2.Name)
 
-		// Reset Nilai
+		// Reset Nilai akun utama
 		if v.TransactionType == Debit {
 			relatedUserAccount.Balance = relatedUserAccount.Balance + v.Amount
 		}
@@ -278,28 +295,55 @@ func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestina
 			return nil, errors.New("insufficient account balance for the requested related credit on related transaction")
 		}
 
-		v.BalanceBefore = relatedUserAccount.Balance
+		// Mengatur balance before ketika akun sama atau berbeda
+		if v.IdAccount == *newIdAccountDestination {
+			v.BalanceBefore = relatedUserAccount.Balance
+		} else {
+			v.BalanceBefore = relatedUserAccount2.Balance
+		}
 		// Related transaction merupakan kebalikan transaksi utamanya
 		// Jika transaksi utamana nya adalah debit, maka transaksi di related transaction merupakan credit
 		// Sehingga jika transaksi utama adalah debit, maka related account akan mengalami peningkatan nilai
-		if t.TransactionType == Debit {
+		if newIdAccountDestination != nil && t.TransactionType == Debit && v.IdAccount == *newIdAccountDestination {
 			relatedUserAccount.Balance = relatedUserAccount.Balance + t.Amount
 			v.TransactionType = Credit
 		}
-
-		if t.TransactionType == Credit {
+		if newIdAccountDestination != nil && t.TransactionType == Credit && v.IdAccount == *newIdAccountDestination {
 			relatedUserAccount.Balance = relatedUserAccount.Balance - t.Amount
 			v.TransactionType = Debit
 		}
-		v.BalanceAfter = relatedUserAccount.Balance
+
+		// Mengatur balance akun baru menyesuaikan jumlah transaksi
+		if newIdAccountDestination != nil && t.TransactionType == Debit && v.IdAccount != *newIdAccountDestination {
+			relatedUserAccount2.Balance = relatedUserAccount2.Balance + t.Amount
+			v.TransactionType = Credit
+		}
+
+		if newIdAccountDestination != nil && t.TransactionType == Credit && v.IdAccount != *newIdAccountDestination {
+			relatedUserAccount2.Balance = relatedUserAccount2.Balance - t.Amount
+			v.TransactionType = Debit
+		}
+
+		// Mengatur balance akun baru menyesuaikan jumlah transaksi
+		if newIdAccountDestination != nil && v.IdAccount == *newIdAccountDestination {
+			v.BalanceAfter = relatedUserAccount.Balance
+		} else {
+			v.BalanceAfter = relatedUserAccount2.Balance
+		}
+
 		v.IdTransactionGroup = t.TransactionGroup.IdTransactionGroup
 		v.Amount = t.Amount
+		v.Description = t.Description
 
 		// Jika User malkukan proses edit dan mengganti akun tujuan,
 		// Maka id account yang sudah ada akan di pindah ke id account yang baru
 		// Dan akan ada transaksi baru
 		if newIdAccountDestination != nil && *newIdAccountDestination != v.IdAccount {
 			v.IdAccount = *newIdAccountDestination
+			err := tx.Save(&relatedUserAccount2).Error
+			if err != nil {
+				return nil, fmt.Errorf("failed to save related account update. %v", err)
+			}
 		}
 
 		// Update transaction record
@@ -308,11 +352,10 @@ func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestina
 			return nil, fmt.Errorf("failed to save related transaction update. %v", err)
 		}
 
-		err := tx.Save(&relatedUserAccount).Error
+		err = tx.Save(&relatedUserAccount).Error
 		if err != nil {
 			return nil, fmt.Errorf("failed to save related account update. %v", err)
 		}
-
 		resp = append(resp, *v.NewTransactionResponse())
 	}
 	return &resp, nil

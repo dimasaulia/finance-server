@@ -30,8 +30,13 @@ func (t TransactionService) CreateNewTransaction(req *v.NewTransactionRequest) (
 		return nil, err
 	}
 
+	var sourceAmount float64 = req.Amount
+	if req.AdminFee != nil {
+		sourceAmount = req.Amount + *req.AdminFee
+	}
+
 	sourceTransaction := m.Transaction{
-		Amount:          req.Amount,
+		Amount:          sourceAmount,
 		TransactionType: m.TransactionType(req.TransactionType),
 		IdUser:          req.IdUser,
 		IdAccount:       req.IdAccount,
@@ -39,6 +44,11 @@ func (t TransactionService) CreateNewTransaction(req *v.NewTransactionRequest) (
 			IdUser:      req.IdUser,
 			Description: req.TransactionGroup,
 		},
+	}
+
+	if req.Description != nil {
+		sourceTransaction.Description.String = *req.Description
+		sourceTransaction.Description.Valid = true
 	}
 
 	err = sourceTransaction.ValidateTransactionType()
@@ -65,6 +75,7 @@ func (t TransactionService) CreateNewTransaction(req *v.NewTransactionRequest) (
 			TransactionType:      m.Credit,
 			IdUser:               req.IdUser,
 			IdAccount:            *req.IdAccountDestination,
+			Description:          sourceTransaction.Description,
 			IdRelatedTransaction: sql.NullInt64{Int64: sourceTransaction.IdTransaction, Valid: true},
 			TransactionGroup: m.TransactionGroup{
 				IdUser:      req.IdUser,
@@ -104,6 +115,10 @@ func (t TransactionService) UpdateTransaction(req *v.UpdateTransactionRequest) (
 			Description: req.TransactionGroup,
 		},
 	}
+	if req.Description != nil {
+		transaction.Description.Valid = true
+		transaction.Description.String = *req.Description
+	}
 
 	err = transaction.ValidateTransactionType()
 	if err != nil {
@@ -111,7 +126,11 @@ func (t TransactionService) UpdateTransaction(req *v.UpdateTransactionRequest) (
 	}
 
 	tx := t.DB.Begin()
-	resp, err := transaction.UpdateExistingTransaction(tx, req.IdAccountDestination)
+	var adminFee sql.NullFloat64
+	if req.AdminFee != nil {
+		adminFee = sql.NullFloat64{Valid: true, Float64: *req.AdminFee}
+	}
+	resp, err := transaction.UpdateExistingTransaction(tx, req.IdAccountDestination, adminFee)
 	if err != nil {
 		tx.Rollback()
 		return nil, err
