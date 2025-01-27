@@ -9,6 +9,15 @@ type NewTransactionRequest struct {
 	Amount               float64 `json:"amount" validate:"required,number,gte=0"`
 }
 
+type UpdateTransactionRequest struct {
+	IdTransaction        int64   `json:"id_transaction" validate:"required,number"`
+	IdUser               int64   `json:"id_user" validate:"required,number"`
+	TransactionType      string  `json:"transaction_type" validate:"required,alphaspace"`
+	TransactionGroup     string  `json:"transaction_group" validate:"required,alphaspace"`
+	IdAccountDestination *int64  `json:"id_transaction_destination" validate:"omitempty,number"`
+	Amount               float64 `json:"amount" validate:"required,number,gte=0"`
+}
+
 type TransactionResponse struct {
 	TransactionCode string  `json:"transaction_code"`
 	Amount          float64 `json:"amount"`

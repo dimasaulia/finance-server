@@ -86,3 +86,38 @@ func (t TransactionService) CreateNewTransaction(req *v.NewTransactionRequest) (
 
 	return &resp, nil
 }
+
+func (t TransactionService) UpdateTransaction(req *v.UpdateTransactionRequest) (*[]v.TransactionResponse, error) {
+	// Validasi Request
+	err := t.Validator.Struct(req)
+	if err != nil {
+		return nil, err
+	}
+
+	transaction := m.Transaction{
+		IdTransaction:   req.IdTransaction,
+		Amount:          req.Amount,
+		TransactionType: m.TransactionType(req.TransactionType),
+		IdUser:          req.IdUser,
+		TransactionGroup: m.TransactionGroup{
+			IdUser:      req.IdUser,
+			Description: req.TransactionGroup,
+		},
+	}
+
+	err = transaction.ValidateTransactionType()
+	if err != nil {
+		return nil, err
+	}
+
+	tx := t.DB.Begin()
+	err = transaction.UpdateExistingTransaction(tx, req.IdAccountDestination)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	tx.Commit()
+
+	return nil, nil
+}

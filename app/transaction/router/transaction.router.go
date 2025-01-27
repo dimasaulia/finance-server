@@ -33,4 +33,5 @@ func (r TransactionRouter) SetupTransactionRouter() {
 	transactionRouter.Use(am.LoginRequired(r.DB))
 
 	transactionRouter.Post("/", r.Controller.CreateNewTransaction)
+	transactionRouter.Put("/", r.Controller.UpdateTransaction)
 }

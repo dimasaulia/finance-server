@@ -24,6 +24,10 @@ type TransactionGroup struct {
 }
 
 func (t *TransactionGroup) AutoCreateTransactionGroup(db *gorm.DB) error {
+	if t.Description == "" {
+		return fmt.Errorf("please fill transaction group")
+	}
+
 	t.Description = strings.ToUpper(t.Description)
 	tgQuery := db.Model(&t).Select("*").Where("UPPER(description) = ?", (t.Description)).Where("id_user", t.IdUser).First(t)
 	if tgQuery.Error != nil && tgQuery.RowsAffected != 0 {
