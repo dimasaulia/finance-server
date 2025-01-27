@@ -121,3 +121,25 @@ func (t TransactionService) UpdateTransaction(req *v.UpdateTransactionRequest) (
 
 	return resp, nil
 }
+
+func (t TransactionService) DeleteTransaction(req *v.DeleteTransactionRequest) error {
+	// Validasi Request
+	err := t.Validator.Struct(req)
+	if err != nil {
+		return err
+	}
+
+	delatedTransaction := m.Transaction{
+		IdTransaction: req.IdTransaction,
+		IdUser:        req.IdUser,
+	}
+
+	tx := t.DB.Begin()
+	err = delatedTransaction.DeleteTransaction(tx)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	tx.Commit()
+	return nil
+}

@@ -24,3 +24,8 @@ type TransactionResponse struct {
 	BalanceBefore   float64 `json:"balance_before"`
 	BalanceAfter    float64 `json:"balance_after"`
 }
+
+type DeleteTransactionRequest struct {
+	IdTransaction int64 `json:"id_transaction" validate:"required,number"`
+	IdUser        int64 `json:"id_user" validate:"required,number"`
+}

@@ -128,6 +128,7 @@ func (t *Transaction) CrateNewTransaction(tx *gorm.DB) error {
 	}
 
 	// Update Counter
+	tgCounter.Counter = tgCounter.Counter + 1
 	err = tx.Save(&tgCounter).Where("id_transaction_counter", tgCounter.IdTransactionCounter).Where("id_transaction_group", t.TransactionGroup.IdTransactionGroup).Error
 	if err != nil {
 		return err
@@ -158,6 +159,10 @@ func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestina
 	qAccount := tx.Model(&Account{}).Select("*").Where("id_account", userTransaction.IdAccount).Where("id_user", userTransaction.IdUser).First(&userAccount)
 	if qAccount.Error != nil {
 		return nil, fmt.Errorf("error when try to find your account. %v", qAccount.Error)
+	}
+	// Cek Apakah Account memiliki parent transaction
+	if userTransaction.IdRelatedTransaction.Valid {
+		return nil, fmt.Errorf("cannot delete this transaction because it has a parent transaction. To delete this transaction, you must first delete the parent transaction")
 	}
 	// Cek Apakah Terdapat transaksi yang lebih baru, jika ada maka transaksi ini tidak bisa di edit, dan user harus menghapus transaksi terbarunya
 	var newerUserTransactionCount int64
@@ -311,4 +316,100 @@ func (t *Transaction) UpdateExistingTransaction(tx *gorm.DB, newIdAccountDestina
 		resp = append(resp, *v.NewTransactionResponse())
 	}
 	return &resp, nil
+}
+
+func (t *Transaction) DeleteTransaction(tx *gorm.DB) error {
+	// Cek Transaction
+	var userTransaction Transaction
+	qTransaction := tx.Model(&Transaction{}).Select("*").Where("id_transaction", t.IdTransaction).Where("id_user", t.IdUser).First(&userTransaction)
+	if qTransaction.Error != nil {
+		return fmt.Errorf("error when try to find your transaction. %v", qTransaction.Error)
+	}
+	// Cek Account
+	var userAccount Account
+	qAccount := tx.Model(&Account{}).Select("*").Where("id_account", userTransaction.IdAccount).Where("id_user", userTransaction.IdUser).First(&userAccount)
+	if qAccount.Error != nil {
+		return fmt.Errorf("error when try to find your account. %v", qAccount.Error)
+	}
+	// Cek Apakah Account memiliki parent transaction
+	if userTransaction.IdRelatedTransaction.Valid {
+		return fmt.Errorf("cannot delete this transaction because it has a parent transaction. To delete this transaction, you must first delete the parent transaction")
+	}
+	// Cek Apakah Terdapat transaksi yang lebih baru, jika ada maka transaksi ini tidak bisa di edit, dan user harus menghapus transaksi terbarunya
+	var newerUserTransactionCount int64
+	qNewerTransaction := tx.Model(&Transaction{}).Where("id_account", userAccount.IdAccount).Where("id_user", t.IdUser).Where("created_at > ?", userTransaction.CreatedAt).Count(&newerUserTransactionCount)
+	if qNewerTransaction.Error != nil {
+		return qNewerTransaction.Error
+	}
+	if newerUserTransactionCount > 0 {
+		return fmt.Errorf("this transaction cannot be deleted because a newer transaction exists. please delete the latest transaction before making changes")
+	}
+
+	// Reset Nilai ammount pada account ke nilai awal
+	// Debit Yang Awalnya mengurangi nilai, jika dalam proses reset maka proses debit akan menambah nilai amount
+	// Credit Yang Awalnya menambah nilai, jika dalam proses reset maka proses credit akan mengurangi nilai amount
+	if userTransaction.TransactionType == Debit {
+		userAccount.Balance = userAccount.Balance + userTransaction.Amount
+	}
+
+	if userTransaction.TransactionType == Credit {
+		userAccount.Balance = userAccount.Balance - userTransaction.Amount
+	}
+
+	// Find Other Related Transaction
+	var otherRelatedTransaction []Transaction
+	qOtherTransaction := tx.Model(&Transaction{}).Select("*").Where("id_related_transaction", userTransaction.IdTransaction).Where("id_user", userTransaction.IdUser).Scan(&otherRelatedTransaction)
+	if qOtherTransaction.Error != nil {
+		return fmt.Errorf("failed to get other related transaction. %v", qOtherTransaction.Error.Error())
+	}
+
+	for _, v := range otherRelatedTransaction {
+		var relatedUserAccount Account
+		qRelatedAccount := tx.Model(&Account{}).Select("*").Where("id_account", v.IdAccount).Where("id_user", v.IdUser).First(&relatedUserAccount)
+		if qRelatedAccount.Error != nil {
+			return fmt.Errorf("error when try to find your related account. %v", qRelatedAccount.Error)
+		}
+
+		// Cek Apakah Terdapat transaksi yang lebih baru, jika ada maka transaksi ini tidak bisa di hapus, dan user harus menghapus transaksi terbarunya
+		var newerRelatedUserTransactionCount int64
+		qNewerRelatedTransaction := tx.Model(&Transaction{}).Where("id_account", relatedUserAccount.IdAccount).Where("id_user", relatedUserAccount.IdUser).Where("created_at > ?", v.CreatedAt).Count(&newerRelatedUserTransactionCount)
+		if qNewerRelatedTransaction.Error != nil {
+			return qNewerRelatedTransaction.Error
+		}
+		if newerRelatedUserTransactionCount >= 1 {
+			return fmt.Errorf("this transaction cannot be deleted because a related transaction has a newer transaction. please delete the latest transaction before making changes")
+		}
+
+		// Reset Nilai
+		if v.TransactionType == Debit {
+			relatedUserAccount.Balance = relatedUserAccount.Balance + v.Amount
+		}
+
+		if v.TransactionType == Credit {
+			relatedUserAccount.Balance = relatedUserAccount.Balance - v.Amount
+		}
+
+		err := tx.Where("id_transaction", v.IdTransaction).Where("id_user", v.IdUser).Delete(&Transaction{}).Error
+		if err != nil {
+			return fmt.Errorf("failed to delete related transaction. %v", err)
+		}
+
+		err = tx.Save(&relatedUserAccount).Error
+		if err != nil {
+			return fmt.Errorf("failed to save related account changes. %v", err)
+		}
+	}
+
+	// Delete transaction record and update user account
+	err := tx.Where("id_transaction", userTransaction.IdTransaction).Where("id_user", userTransaction.IdUser).Delete(&Transaction{}).Error
+	if err != nil {
+		return fmt.Errorf("failed to delete transaction. %v", err)
+	}
+
+	err = tx.Save(&userAccount).Error
+	if err != nil {
+		return fmt.Errorf("failed to save account update. %v", err)
+	}
+
+	return nil
 }
