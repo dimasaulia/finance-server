@@ -3,6 +3,8 @@ package transaction_controller
 import (
 	ts "finance/app/transaction/service"
 	v "finance/app/transaction/validation"
+	g "finance/utility/generator"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
@@ -85,5 +87,29 @@ func (t TransactionController) DeleteTransaction(c *fiber.Ctx) error {
 		"success": true,
 		"message": "Successfully delete transaction",
 		"data":    "",
+	})
+}
+
+func (t TransactionController) ListTransaction(c *fiber.Ctx) error {
+	var userData v.UserTransactionDetailRequest
+
+	idAccount := c.Query("id-account")
+	userData.IdAccount = &idAccount
+	filter := g.GenerateFilter(c)
+
+	if lIdUser, ok := c.Locals("id_user").(int64); ok {
+		sIdUser := strconv.Itoa(int(lIdUser))
+		userData.IdUser = &sIdUser
+	}
+
+	resp, err := t.TransactionService.GetUserTransaction(filter, &userData)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"message": "Successfully delete transaction",
+		"data":    resp,
 	})
 }

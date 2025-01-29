@@ -58,5 +58,7 @@ func GenerateFilter(c *fiber.Ctx) *response_utiliy.StandarGetRequest {
 	filterData.Search = c.Query("search")
 	filterData.Record = c.Query("record")
 	filterData.Sort = c.Query("sort")
+	filterData.StartDate = c.Query("start-date")
+	filterData.EndDate = c.Query("end-date")
 	return &filterData
 }

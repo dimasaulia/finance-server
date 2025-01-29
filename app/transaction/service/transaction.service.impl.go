@@ -4,7 +4,11 @@ import (
 	"database/sql"
 	v "finance/app/transaction/validation"
 	m "finance/model"
+	"finance/utility/generator"
+	u "finance/utility/response"
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"gorm.io/gorm"
@@ -161,4 +165,74 @@ func (t TransactionService) DeleteTransaction(req *v.DeleteTransactionRequest) e
 	}
 	tx.Commit()
 	return nil
+}
+
+func (t TransactionService) GetUserTransaction(req *u.StandarGetRequest, data *v.UserTransactionDetailRequest) (*[]v.TransactionData, error) {
+	var resp []v.TransactionData
+	var paramsValue []interface{}
+	var paramsKey string = " where "
+	currentTime := time.Now()
+
+	err := t.Validator.Struct(data)
+	if err != nil {
+		return nil, err
+	}
+
+	queryTransactionList := `select 
+		t.id_transaction,
+		t.transaction_code,
+		t.transaction_type, 
+		t.amount,
+		t.balance_before,
+		t.balance_after, 
+		t.description,
+		t.created_at,
+		case when t.id_related_transaction is not null then 1 else 0 end "is_have_parent_transaction",
+		t.id_related_transaction,
+		tg.id_transaction_group,
+		tg.description "transaction_name",
+		a.id_account,
+		a."name" "account_name",
+		to_char(t.created_at, 'dd-mm-yyyy')
+	from "transaction" t
+	inner join transaction_group tg on tg.id_transaction_group = t.id_transaction_group 
+	inner join account a on a.id_account = t.id_account`
+
+	paramsKey += " t.id_user = ?"
+	paramsValue = append(paramsValue, data.IdUser)
+
+	if *data.IdAccount != "" {
+		paramsKey += " and t.id_account = ?"
+		paramsValue = append(paramsValue, *data.IdAccount)
+	}
+
+	if req.StartDate == "" {
+		req.EndDate = currentTime.Format("02-01-2006")
+	}
+
+	if req.StartDate == "" {
+		req.StartDate = currentTime.AddDate(0, 0, -7).Format("02-01-2006")
+	}
+
+	paramsKey += " and to_char(t.created_at, 'dd-mm-yyyy') BETWEEN ? AND ?"
+	paramsValue = append(paramsValue, req.StartDate, req.EndDate)
+
+	offset, err := generator.GenerateOffset(req)
+	if err != nil {
+		return nil, err
+	}
+
+	paramsKey += " limit ? offset ?"
+	paramsValue = append(paramsValue, strconv.Itoa(offset.Limit), strconv.Itoa(offset.Offset))
+
+	queryTransactionList += paramsKey
+	qTransactionList := t.DB.Raw(queryTransactionList, paramsValue...)
+
+	qTransactionList.Scan(&resp)
+
+	if qTransactionList.Error != nil {
+		return nil, qTransactionList.Error
+	}
+
+	return &resp, nil
 }
