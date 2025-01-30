@@ -78,4 +78,14 @@ func (p *PSQL) StartMigration(db *gorm.DB) {
 
 	db.Migrator().CreateConstraint(&model.TransactionGroup{}, "TransactionCounter")
 	db.Migrator().CreateConstraint(&model.TransactionGroup{}, "fk_transaction_group_transaction_counter")
+
+	// Foreign Key Untuk Tabel Sub Transaction
+	db.Migrator().CreateConstraint(&model.User{}, "SubTransaction")
+	db.Migrator().CreateConstraint(&model.User{}, "fk_user_sub_transaction")
+	db.Migrator().CreateConstraint(&model.Transaction{}, "SubTransaction")
+	db.Migrator().CreateConstraint(&model.Transaction{}, "fk_transaction_to_sub_transaction")
+	db.Migrator().CreateConstraint(&model.TransactionGroup{}, "SubTransaction")
+	db.Migrator().CreateConstraint(&model.TransactionGroup{}, "fk_transaction_group_to_sub_transaction")
+	db.Migrator().CreateConstraint(&model.Transaction{}, "SubTransaction")
+	db.Migrator().CreateConstraint(&model.Transaction{}, "fk_transaction_to_related_sub_transaction")
 }

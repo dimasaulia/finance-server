@@ -21,6 +21,7 @@ type TransactionGroup struct {
 	User               User                 `gorm:"column:id_user;foreignKey:id_user;references:id_user"`
 	Transaction        []Transaction        `gorm:"foreignKey:id_transaction_group;references:id_transaction_group"`
 	TransactionCounter []TransactionCounter `gorm:"foreignKey:id_transaction_group;references:id_transaction_group"`
+	SubTransaction     []SubTransaction     `gorm:"foreignKey:id_transaction_group;references:id_transaction_group"`
 }
 
 func (t *TransactionGroup) AutoCreateTransactionGroup(db *gorm.DB) error {

@@ -40,6 +40,7 @@ type Transaction struct {
 	Account              Account          `gorm:"foreignKey:id_account;references:id_account"`
 	IdRelatedTransaction sql.NullInt64    `gorm:"column:id_related_transaction;foreignKey:id_related_transaction;references:id_transaction"`
 	RelatedTransaction   []Transaction    `gorm:"foreignKey:id_related_transaction;references:id_transaction"`
+	SubTransaction       []SubTransaction `gorm:"column:id_transaction;foreignKey:id_user;references:id_transaction"`
 }
 
 func (t Transaction) ValidateTransactionType() error {

@@ -24,4 +24,5 @@ type User struct {
 	Account          []Account          `gorm:"foreignKey:id_user;references:id_user"`
 	TransactionGroup []TransactionGroup `gorm:"foreignKey:id_user;references:id_user"`
 	Transaction      []Transaction      `gorm:"foreignKey:id_user;references:id_user"`
+	SubTransaction   []SubTransaction   `gorm:"foreignKey:id_user;references:id_user"`
 }
