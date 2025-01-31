@@ -5,7 +5,6 @@ import (
 	am "finance/middleware/auth"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/log"
 	"gorm.io/gorm"
 )
 
@@ -28,12 +27,15 @@ func NewTransactionRouter(a *fiber.App, c tc.ITransactionController, db *gorm.DB
 }
 
 func (r TransactionRouter) SetupTransactionRouter() {
-	log.Info("Setup Transaction Work")
 	transactionRouter := r.App.Group("/api/transaction/v1")
+	subTransactionRouter := r.App.Group("/api/sub-transaction/v1")
 	transactionRouter.Use(am.LoginRequired(r.DB))
+	subTransactionRouter.Use(am.LoginRequired(r.DB))
 
 	transactionRouter.Post("/", r.Controller.CreateNewTransaction)
 	transactionRouter.Put("/", r.Controller.UpdateTransaction)
 	transactionRouter.Delete("/", r.Controller.DeleteTransaction)
 	transactionRouter.Get("/", r.Controller.ListTransaction)
+
+	subTransactionRouter.Post("/", r.Controller.CreateNewSubTransaction)
 }

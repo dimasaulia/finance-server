@@ -60,3 +60,14 @@ type UserTransactionDetailRequest struct {
 	IdUser    *string `json:"id_user" validate:"required"`
 	IdAccount *string `json:"id_account" validate:"required"`
 }
+
+type NewSubTransactionRequest struct {
+	IdUser                   int64    `json:"id_user" validate:"required,number"`
+	IdTransaction            int64    `json:"id_transaction" validate:"required,number"`
+	TransactionType          string   `json:"transaction_type" validate:"required,alphaspace"`
+	TransactionGroup         string   `json:"transaction_group" validate:"required,alphaspace"`
+	IdTransactionDestination *int64   `json:"id_transaction_destination" validate:"omitempty,number"`
+	Amount                   float64  `json:"amount" validate:"required,number,gte=0"`
+	Description              *string  `json:"description" validate:"required"`
+	AdminFee                 *float64 `json:"admin_fee" validate:"omitempty,number,gte=0"`
+}

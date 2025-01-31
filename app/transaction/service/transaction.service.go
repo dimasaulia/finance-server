@@ -10,4 +10,5 @@ type ITransactionService interface {
 	UpdateTransaction(req *v.UpdateTransactionRequest) (*[]v.TransactionResponse, error)
 	DeleteTransaction(req *v.DeleteTransactionRequest) error
 	GetUserTransaction(req *u.StandarGetRequest, data *v.UserTransactionDetailRequest) (*[]v.TransactionData, error)
+	CreateNewSubTransaction(req *v.NewSubTransactionRequest) (*[]v.TransactionResponse, error)
 }

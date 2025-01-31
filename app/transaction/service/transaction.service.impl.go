@@ -26,7 +26,7 @@ func NewTransactionService(db *gorm.DB, v *validator.Validate) ITransactionServi
 	}
 }
 
-func (t TransactionService) CreateNewTransaction(req *v.NewTransactionRequest) (*[]v.TransactionResponse, error) {
+func (t *TransactionService) CreateNewTransaction(req *v.NewTransactionRequest) (*[]v.TransactionResponse, error) {
 	var resp []v.TransactionResponse
 	// Validasi Request
 	err := t.Validator.Struct(req)
@@ -102,7 +102,7 @@ func (t TransactionService) CreateNewTransaction(req *v.NewTransactionRequest) (
 	return &resp, nil
 }
 
-func (t TransactionService) UpdateTransaction(req *v.UpdateTransactionRequest) (*[]v.TransactionResponse, error) {
+func (t *TransactionService) UpdateTransaction(req *v.UpdateTransactionRequest) (*[]v.TransactionResponse, error) {
 	// Validasi Request
 	err := t.Validator.Struct(req)
 	if err != nil {
@@ -145,7 +145,7 @@ func (t TransactionService) UpdateTransaction(req *v.UpdateTransactionRequest) (
 	return resp, nil
 }
 
-func (t TransactionService) DeleteTransaction(req *v.DeleteTransactionRequest) error {
+func (t *TransactionService) DeleteTransaction(req *v.DeleteTransactionRequest) error {
 	// Validasi Request
 	err := t.Validator.Struct(req)
 	if err != nil {
@@ -167,7 +167,7 @@ func (t TransactionService) DeleteTransaction(req *v.DeleteTransactionRequest) e
 	return nil
 }
 
-func (t TransactionService) GetUserTransaction(req *u.StandarGetRequest, data *v.UserTransactionDetailRequest) (*[]v.TransactionData, error) {
+func (t *TransactionService) GetUserTransaction(req *u.StandarGetRequest, data *v.UserTransactionDetailRequest) (*[]v.TransactionData, error) {
 	var resp []v.TransactionData
 	var paramsValue []interface{}
 	var paramsKey string = " where "
@@ -235,4 +235,74 @@ func (t TransactionService) GetUserTransaction(req *u.StandarGetRequest, data *v
 	}
 
 	return &resp, nil
+}
+
+func (t *TransactionService) CreateNewSubTransaction(req *v.NewSubTransactionRequest) (*[]v.TransactionResponse, error) {
+	// Cek dan Validasi Request
+	err := t.Validator.Struct(req)
+	if err != nil {
+		return nil, fmt.Errorf("request validation failed: %v. Please check the fields and ensure they match the required format", err.Error())
+	}
+
+	if req.IdTransactionDestination != nil && req.IdTransaction == *req.IdTransactionDestination {
+		return nil, fmt.Errorf("source transaction and destination transaction cannot be the same")
+	}
+
+	resp := new([]v.TransactionResponse)
+
+	// Tambahkan Admin Fee Jika Ada
+	var sourceAmount float64 = req.Amount
+	if req.AdminFee != nil {
+		sourceAmount = sourceAmount + *req.AdminFee
+	}
+
+	// Buat Objek
+	newSourceSubTransaction := new(m.SubTransaction)
+	newSourceSubTransaction.Amount = sourceAmount
+	newSourceSubTransaction.TransactionType = m.TransactionType(req.TransactionType)
+	newSourceSubTransaction.IdTransaction = req.IdTransaction
+	newSourceSubTransaction.IdUser = req.IdUser
+	newSourceSubTransaction.TransactionGroup.IdUser = req.IdUser
+	newSourceSubTransaction.TransactionGroup.Description = req.TransactionGroup
+	if req.Description != nil {
+		newSourceSubTransaction.Description.String = *req.Description
+		newSourceSubTransaction.Description.Valid = true
+	}
+
+	err = newSourceSubTransaction.ValidateTransactionType()
+	if err != nil {
+		return nil, err
+	}
+
+	// Buka transaksi
+	tx := t.DB.Begin()
+	err = newSourceSubTransaction.CreateNewSubTransaction(tx)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if req.TransactionType == string(m.Debit) && req.IdTransactionDestination != nil {
+		newDestinationSubTransaction := new(m.SubTransaction)
+		newDestinationSubTransaction.Amount = req.Amount
+		newDestinationSubTransaction.TransactionType = m.Credit
+		newDestinationSubTransaction.IdUser = req.IdUser
+		newDestinationSubTransaction.IdTransaction = *req.IdTransactionDestination
+		newDestinationSubTransaction.TransactionGroup.IdUser = req.IdUser
+		newDestinationSubTransaction.TransactionGroup.Description = *req.Description
+		if req.Description != nil {
+			newDestinationSubTransaction.Description.String = *req.Description
+			newDestinationSubTransaction.Description.Valid = true
+		}
+		err = newDestinationSubTransaction.CreateNewSubTransaction(tx)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	*resp = append(*resp, *newSourceSubTransaction.NewTransactionResponse())
+	tx.Commit()
+	// Commit transaksi
+	return resp, nil
 }
