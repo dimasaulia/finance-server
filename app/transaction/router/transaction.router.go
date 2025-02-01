@@ -39,4 +39,5 @@ func (r TransactionRouter) SetupTransactionRouter() {
 
 	subTransactionRouter.Post("/", r.Controller.CreateNewSubTransaction)
 	subTransactionRouter.Put("/", r.Controller.UpdateSubTransaction)
+	subTransactionRouter.Delete("/", r.Controller.DeleteSubTransaction)
 }

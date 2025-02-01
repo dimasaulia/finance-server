@@ -82,3 +82,8 @@ type UpdateSubTransactionRequest struct {
 	Description              *string  `json:"description" validate:"required"`
 	AdminFee                 *float64 `json:"admin_fee" validate:"omitempty,number,gte=0"`
 }
+
+type DeleteSubTransactionRequest struct {
+	IdSubTransaction int64 `json:"id_sub_transaction" validate:"required,number"`
+	IdUser           int64 `json:"id_user" validate:"required,number"`
+}

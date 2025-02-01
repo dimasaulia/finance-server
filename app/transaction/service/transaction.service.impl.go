@@ -378,7 +378,7 @@ func (t *TransactionService) UpdateSubTransaction(req *v.UpdateSubTransactionReq
 	// Cari sub transaksi yang memiliki relasi ke transaksi yang ingin di ubah
 	for _, subRelated := range *subRelatedTransaction {
 		// Jika Destinasi Sama maka update saja menyesuaikan amount baru
-		if subRelated.IdTransaction == *req.IdTransactionDestination { //TODO: Ganti nama subTransaction, karena sebenarnya dia adalah transaction
+		if subRelated.IdTransaction == *req.IdTransactionDestination {
 			subRelated.Amount = req.Amount
 			subRelated.TransactionGroup.Description = req.TransactionGroup
 			subRelated.TransactionGroup.IdUser = req.IdUser
@@ -396,10 +396,83 @@ func (t *TransactionService) UpdateSubTransaction(req *v.UpdateSubTransactionReq
 			*resp = append(*resp, *subRelated.NewTransactionResponse())
 
 		}
-		// TODO: Jika Destinasi berbeda maka delete transaksi lama dan buat yang baru
+		// Jika Destinasi berbeda maka delete transaksi lama dan buat yang baru
+		if subRelated.IdTransaction != *req.IdTransactionDestination {
+			err = subRelated.DeleteSubTransaction(tx)
+			if err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+
+			newDestinationSubTransaction := new(m.SubTransaction)
+			newDestinationSubTransaction.Amount = req.Amount
+			newDestinationSubTransaction.TransactionType = m.Credit
+			newDestinationSubTransaction.IdUser = req.IdUser
+			newDestinationSubTransaction.IdTransaction = *req.IdTransactionDestination
+			newDestinationSubTransaction.TransactionGroup.IdUser = req.IdUser
+			newDestinationSubTransaction.TransactionGroup.Description = req.TransactionGroup
+			newDestinationSubTransaction.IdRelatedSubTransaction.Int64 = subTransaction.IdSubTransaction
+			newDestinationSubTransaction.IdRelatedSubTransaction.Valid = true
+			if req.Description != nil {
+				newDestinationSubTransaction.Description.String = *req.Description
+				newDestinationSubTransaction.Description.Valid = true
+			}
+			err = newDestinationSubTransaction.CreateNewSubTransaction(tx)
+			if err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+		}
 	}
 	// Commit DB TRX
 	tx.Commit()
 
 	return resp, nil
+}
+
+func (t *TransactionService) DeleteSubTransaction(req *v.DeleteSubTransactionRequest) error {
+	// Validasi Request
+	err := t.Validator.Struct(req)
+	if err != nil {
+		return err
+	}
+
+	delatedTransaction := m.SubTransaction{
+		IdSubTransaction: req.IdSubTransaction,
+		IdUser:           req.IdUser,
+	}
+
+	// Cek Apakah memiliki parent transaction
+	subTransaction := new(m.SubTransaction)
+	qSubTransaction := t.DB.Model(&m.SubTransaction{}).Select("*").Where("id_sub_transaction", req.IdSubTransaction).Where("id_user", req.IdUser).First(subTransaction)
+	if qSubTransaction.Error != nil {
+		return fmt.Errorf("we couldn't process your sub transaction. %v", qSubTransaction.Error)
+	}
+	if subTransaction.IdRelatedSubTransaction.Valid {
+		return fmt.Errorf("cannot modify this transaction because it has a parent transaction. To delete this transaction, you must first modify the parent transaction")
+	}
+
+	// Cek Apakah Memiliki Sub Transaction
+	subRelatedTransaction := new([]m.SubTransaction)
+	qSubRelatedTransaction := t.DB.Model(&m.SubTransaction{}).Select("*").Where("id_related_sub_transaction", req.IdSubTransaction).Where("id_user", req.IdUser).Scan(subRelatedTransaction)
+	if qSubRelatedTransaction.Error != nil {
+		return fmt.Errorf("we couldn't process your sub transaction. %v", qSubRelatedTransaction.Error)
+	}
+
+	tx := t.DB.Begin()
+	for _, relatedSubTransaction := range *subRelatedTransaction {
+		err = relatedSubTransaction.DeleteSubTransaction(tx)
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	err = delatedTransaction.DeleteSubTransaction(tx)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	tx.Commit()
+	return nil
 }
