@@ -289,7 +289,9 @@ func (t *TransactionService) CreateNewSubTransaction(req *v.NewSubTransactionReq
 		newDestinationSubTransaction.IdUser = req.IdUser
 		newDestinationSubTransaction.IdTransaction = *req.IdTransactionDestination
 		newDestinationSubTransaction.TransactionGroup.IdUser = req.IdUser
-		newDestinationSubTransaction.TransactionGroup.Description = *req.Description
+		newDestinationSubTransaction.TransactionGroup.Description = req.TransactionGroup
+		newDestinationSubTransaction.IdRelatedSubTransaction.Int64 = newSourceSubTransaction.IdSubTransaction
+		newDestinationSubTransaction.IdRelatedSubTransaction.Valid = true
 		if req.Description != nil {
 			newDestinationSubTransaction.Description.String = *req.Description
 			newDestinationSubTransaction.Description.Valid = true
