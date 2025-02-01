@@ -109,7 +109,7 @@ func (t TransactionController) ListTransaction(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"success": true,
-		"message": "Successfully delete transaction",
+		"message": "Successfully get transaction",
 		"data":    resp,
 	})
 }

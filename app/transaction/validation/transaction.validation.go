@@ -49,7 +49,9 @@ type TransactionData struct {
 	Description             string        `json:"description"`
 	CreatedAt               time.Time     `json:"created_at"`
 	IsHaveParentTransaction int8          `json:"is_have_parent_transaction"`
-	IdRelatedTransaction    sql.NullInt64 `json:"id_related_transaction"`
+	IdParentTransaction     sql.NullInt64 `json:"id_parent_transaction"`
+	IsHaveChildTransaction  int8          `json:"is_have_child_transaction"`
+	IdChildTransaction      sql.NullInt64 `json:"id_child_transaction"`
 	IdTransactionGroup      int64         `json:"id_transaction_group"`
 	TransactionName         string        `json:"transaction_name"`
 	IdAccount               int64         `json:"id_account"`

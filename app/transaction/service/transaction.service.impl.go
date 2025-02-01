@@ -188,7 +188,9 @@ func (t *TransactionService) GetUserTransaction(req *u.StandarGetRequest, data *
 		t.description,
 		t.created_at,
 		case when t.id_related_transaction is not null then 1 else 0 end "is_have_parent_transaction",
-		t.id_related_transaction,
+        t.id_related_transaction "id_parent_transaction",
+		case when rt.id_related_transaction is not null then 1 else 0 end "is_have_child_transaction",
+		rt.id_transaction "id_child_transaction",
 		tg.id_transaction_group,
 		tg.description "transaction_name",
 		a.id_account,
@@ -196,7 +198,8 @@ func (t *TransactionService) GetUserTransaction(req *u.StandarGetRequest, data *
 		to_char(t.created_at, 'dd-mm-yyyy')
 	from "transaction" t
 	inner join transaction_group tg on tg.id_transaction_group = t.id_transaction_group 
-	inner join account a on a.id_account = t.id_account`
+	inner join account a on a.id_account = t.id_account
+	left  join "transaction" rt on rt.id_related_transaction = t.id_transaction`
 
 	paramsKey += " t.id_user = ?"
 	paramsValue = append(paramsValue, data.IdUser)
@@ -214,7 +217,7 @@ func (t *TransactionService) GetUserTransaction(req *u.StandarGetRequest, data *
 		req.StartDate = currentTime.AddDate(0, 0, -7).Format("02-01-2006")
 	}
 
-	paramsKey += " and to_char(t.created_at, 'dd-mm-yyyy') BETWEEN ? AND ?"
+	paramsKey += " and to_date(to_char(t.created_at, 'dd-mm-yyyy'),'dd-mm-yyyy') BETWEEN to_date(?,'dd-mm-yyyy') AND to_date(?,'dd-mm-yyyy')"
 	paramsValue = append(paramsValue, req.StartDate, req.EndDate)
 
 	offset, err := generator.GenerateOffset(req)
@@ -222,7 +225,7 @@ func (t *TransactionService) GetUserTransaction(req *u.StandarGetRequest, data *
 		return nil, err
 	}
 
-	paramsKey += " limit ? offset ?"
+	paramsKey += " order by t.id_transaction limit ? offset ?"
 	paramsValue = append(paramsValue, strconv.Itoa(offset.Limit), strconv.Itoa(offset.Offset))
 
 	queryTransactionList += paramsKey
