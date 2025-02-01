@@ -3,3 +3,28 @@
 *.output
 .env
 tmp/
+
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+*.test
+*.out
+*.log
+
+go.work
+
+# Windows
+Thumbs.db
+desktop.ini
+# OS X
+.DS_Store
+.Spotlight-V100
+.Trashes
+._*
+# Linux
+fms.*
+fms*
+fms
