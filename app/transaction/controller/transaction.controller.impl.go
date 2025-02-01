@@ -137,3 +137,26 @@ func (t TransactionController) CreateNewSubTransaction(c *fiber.Ctx) error {
 		"data":    resp,
 	})
 }
+
+func (t TransactionController) UpdateSubTransaction(c *fiber.Ctx) error {
+	req := new(v.UpdateSubTransactionRequest)
+	err := c.BodyParser(req)
+	if err != nil {
+		log.Errorf("Failed to parse json: %v", err.Error())
+		return fiber.NewError(fiber.StatusBadRequest, "failed to parse request payload")
+	}
+
+	if lIdUser, ok := c.Locals("id_user").(int64); ok {
+		req.IdUser = lIdUser
+	}
+	resp, err := t.TransactionService.UpdateSubTransaction(req)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"message": "Successfully update sub transaction",
+		"data":    resp,
+	})
+}

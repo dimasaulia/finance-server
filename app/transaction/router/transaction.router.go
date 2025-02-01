@@ -38,4 +38,5 @@ func (r TransactionRouter) SetupTransactionRouter() {
 	transactionRouter.Get("/", r.Controller.ListTransaction)
 
 	subTransactionRouter.Post("/", r.Controller.CreateNewSubTransaction)
+	subTransactionRouter.Put("/", r.Controller.UpdateSubTransaction)
 }

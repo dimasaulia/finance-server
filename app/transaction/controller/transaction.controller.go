@@ -8,4 +8,5 @@ type ITransactionController interface {
 	DeleteTransaction(c *fiber.Ctx) error
 	ListTransaction(c *fiber.Ctx) error
 	CreateNewSubTransaction(c *fiber.Ctx) error
+	UpdateSubTransaction(c *fiber.Ctx) error
 }

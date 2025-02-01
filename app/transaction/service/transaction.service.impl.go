@@ -308,3 +308,98 @@ func (t *TransactionService) CreateNewSubTransaction(req *v.NewSubTransactionReq
 	// Commit transaksi
 	return resp, nil
 }
+
+func (t *TransactionService) UpdateSubTransaction(req *v.UpdateSubTransactionRequest) (*[]v.TransactionResponse, error) {
+	resp := new([]v.TransactionResponse)
+	// Validasi Request
+	err := t.Validator.Struct(req)
+	if err != nil {
+		return nil, fmt.Errorf("something went wrong while validating your request. Please review the details and try again. Details: %s", err)
+	}
+
+	// Cek Apakah memiliki parent transaction
+	subTransaction := new(m.SubTransaction)
+	qSubTransaction := t.DB.Model(&m.SubTransaction{}).Select("*").Where("id_sub_transaction", req.IdSubTransaction).Where("id_user", req.IdUser).First(subTransaction)
+	if qSubTransaction.Error != nil {
+		return nil, fmt.Errorf("we couldn't process your sub transaction. %v", qSubTransaction.Error)
+	}
+	if subTransaction.IdRelatedSubTransaction.Valid {
+		return nil, fmt.Errorf("cannot modify this transaction because it has a parent transaction. To delete this transaction, you must first modify the parent transaction")
+	}
+
+	// Cek Apakah Memiliki Sub Transaction
+	subRelatedTransaction := new([]m.SubTransaction)
+	qSubRelatedTransaction := t.DB.Model(&m.SubTransaction{}).Select("*").Where("id_related_sub_transaction", subTransaction.IdSubTransaction).Where("id_user", req.IdUser).Scan(subRelatedTransaction)
+	if qSubRelatedTransaction.Error != nil {
+		return nil, fmt.Errorf("we couldn't process your sub transaction. %v", qSubRelatedTransaction.Error)
+	}
+
+	// Jika Memiliki sub transaction, tidak bisa melakukan proses credit
+	if qSubRelatedTransaction.RowsAffected > 0 && req.TransactionType == string(m.Credit) {
+		return nil, fmt.Errorf("transaction type cannot be changed to credit because this transaction has linked sub-transactions")
+	}
+	// Jika Memiliki sub transaction, id destination transaction harus terisi
+	if qSubRelatedTransaction.RowsAffected > 0 && req.IdTransactionDestination == nil {
+		return nil, fmt.Errorf("the transaction you are trying to update is linked to other transactions. you must specify a new destination account for this transaction")
+	}
+	// Jika Memiliki sub transaction, id destination dan id transaction tidak boleh sama
+	if qSubRelatedTransaction.RowsAffected > 0 && *req.IdTransactionDestination == subTransaction.IdTransaction {
+		return nil, fmt.Errorf("we're unable to process your request. the destination transaction cannot be the same as the current transaction")
+	}
+
+	sourceAmount := req.Amount
+	if req.AdminFee != nil {
+		sourceAmount += *req.AdminFee
+	}
+
+	// Buka DB TRX
+	tx := t.DB.Begin()
+	// Buat Objek Untuk Memodifikasi Sub Transaction
+	subTransaction.Amount = sourceAmount
+	subTransaction.TransactionGroup.Description = req.TransactionGroup
+	subTransaction.TransactionGroup.IdUser = req.IdUser
+	if req.Description != nil {
+		subTransaction.Description.String = *req.Description
+		subTransaction.Description.Valid = true
+	}
+	subTransaction.TransactionType = m.TransactionType(req.TransactionType)
+	err = subTransaction.ValidateTransactionType()
+	if err != nil {
+		return nil, err
+	}
+	subTransaction.IdUser = req.IdUser
+	err = subTransaction.UpdateSubTransaction(tx)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	*resp = append(*resp, *subTransaction.NewTransactionResponse())
+
+	// Cari sub transaksi yang memiliki relasi ke transaksi yang ingin di ubah
+	for _, subRelated := range *subRelatedTransaction {
+		// Jika Destinasi Sama maka update saja menyesuaikan amount baru
+		if subRelated.IdTransaction == *req.IdTransactionDestination { //TODO: Ganti nama subTransaction, karena sebenarnya dia adalah transaction
+			subRelated.Amount = req.Amount
+			subRelated.TransactionGroup.Description = req.TransactionGroup
+			subRelated.TransactionGroup.IdUser = req.IdUser
+			subRelated.TransactionType = m.Credit
+			if req.Description != nil {
+				subRelated.Description.String = *req.Description
+				subRelated.Description.Valid = true
+			}
+
+			err = subRelated.UpdateSubTransaction(tx)
+			if err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+			*resp = append(*resp, *subRelated.NewTransactionResponse())
+
+		}
+		// TODO: Jika Destinasi berbeda maka delete transaksi lama dan buat yang baru
+	}
+	// Commit DB TRX
+	tx.Commit()
+
+	return resp, nil
+}

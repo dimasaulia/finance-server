@@ -71,3 +71,14 @@ type NewSubTransactionRequest struct {
 	Description              *string  `json:"description" validate:"required"`
 	AdminFee                 *float64 `json:"admin_fee" validate:"omitempty,number,gte=0"`
 }
+
+type UpdateSubTransactionRequest struct {
+	IdSubTransaction         int64    `json:"id_sub_transaction" validate:"required,number"`
+	IdUser                   int64    `json:"id_user" validate:"required,number"`
+	TransactionType          string   `json:"transaction_type" validate:"required,alphaspace"`
+	TransactionGroup         string   `json:"transaction_group" validate:"required,alphaspace"`
+	IdTransactionDestination *int64   `json:"id_transaction_destination" validate:"omitempty,number"`
+	Amount                   float64  `json:"amount" validate:"required,number,gte=0"`
+	Description              *string  `json:"description" validate:"required"`
+	AdminFee                 *float64 `json:"admin_fee" validate:"omitempty,number,gte=0"`
+}

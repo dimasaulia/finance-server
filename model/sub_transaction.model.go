@@ -161,3 +161,87 @@ func (t *SubTransaction) CreateNewSubTransaction(tx *gorm.DB) error {
 	}
 	return nil
 }
+
+func (t *SubTransaction) UpdateSubTransaction(tx *gorm.DB) error {
+	// Cek Apakah Sub Transaksinya Masih Ada
+	subTransaction := new(SubTransaction)
+	qSubTransaction := tx.Model(&SubTransaction{}).Select("*").Where("id_sub_transaction", t.IdSubTransaction).Where("id_user", t.IdUser).First(subTransaction)
+	if qSubTransaction.Error != nil {
+		return fmt.Errorf("we couldn't process your sub transaction. %v", qSubTransaction.Error)
+	}
+	if qSubTransaction.RowsAffected == 0 {
+		return fmt.Errorf("the sub-transaction or detail transaction you requested does not exist or cannot be found")
+	}
+
+	// Sekarang Cek Parent Transaction
+	parentTransaction := new(Transaction)
+	qParentTransaction := tx.Model(&Transaction{}).Select("*").Where("id_transaction", subTransaction.IdTransaction).Where("id_user", subTransaction.IdUser).First(parentTransaction)
+	if qParentTransaction.Error != nil {
+		return fmt.Errorf("we couldn't process your transaction. %v", qParentTransaction.Error)
+	}
+	if qParentTransaction.RowsAffected == 0 {
+		return fmt.Errorf("the transaction you requested does not exist or cannot be found")
+	}
+
+	// Ambil Seluruh data sub transaksi yang terkakit dengan parent transaksi
+	allSubTransaction := new([]SubTransaction)
+	qAllSubTransaction := tx.Model(&SubTransaction{}).Select("*").Where("id_transaction", parentTransaction.IdTransaction).Where("id_user", t.IdUser).Scan(allSubTransaction)
+	if qAllSubTransaction.Error != nil {
+		return fmt.Errorf("we couldn't process your transaction. %v", qAllSubTransaction.Error)
+	}
+
+	// Lakukan Validasi seluruh data sub transaksi tidak ada sub transaction yang lebih baru dari sub transaksi yang akan diedit
+	isNewerSubTransactionExist := false
+	for _, subT := range *allSubTransaction {
+		if subT.CreatedAt.After(subTransaction.CreatedAt) {
+			isNewerSubTransactionExist = true
+		}
+
+		// Hanya hitung amount transaksi sebeleum transaksi yang ingin di update
+		if subT.CreatedAt.Before(subTransaction.CreatedAt) && subT.IdSubTransaction != t.IdSubTransaction {
+			if subT.TransactionType == Credit {
+				parentTransaction.Amount += subT.Amount
+			}
+
+			if subT.TransactionType == Debit {
+				parentTransaction.Amount -= subT.Amount
+			}
+		}
+	}
+	if isNewerSubTransactionExist {
+		return fmt.Errorf("this sub transaction cannot be modified because a newer transaction exists. please delete the latest sub transaction before making changes")
+	}
+
+	if t.Amount > parentTransaction.Amount && t.TransactionType == Debit {
+		return fmt.Errorf("insufficient account balance for the requested related credit on related transaction")
+	}
+
+	// Hitung amount before dan after berdasarkan sub transaksi sebelumnya
+	subTransaction.BalanceBefore = parentTransaction.Amount
+	t.BalanceBefore = parentTransaction.Amount
+	if t.TransactionType == Credit {
+		parentTransaction.Amount += t.Amount
+	}
+	if t.TransactionType == Debit {
+		parentTransaction.Amount -= t.Amount
+	}
+	subTransaction.BalanceAfter = parentTransaction.Amount
+	t.BalanceAfter = parentTransaction.Amount
+	subTransaction.Amount = t.Amount
+	if t.Description.Valid {
+		subTransaction.Description = t.Description
+	}
+	err := t.TransactionGroup.AutoCreateTransactionGroup(tx)
+	if err != nil {
+		return err
+	}
+	subTransaction.TransactionType = t.TransactionType
+	subTransaction.IdTransactionGroup = t.IdTransactionGroup
+
+	// Update sub transaction
+	err = tx.Save(&subTransaction).Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
